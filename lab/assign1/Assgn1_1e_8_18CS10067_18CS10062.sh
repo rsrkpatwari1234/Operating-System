@@ -1,0 +1,1 @@
+cat /dev/urandom|tr -dc 'a-zA-Z0-9_'|head -c ${1:-16} 

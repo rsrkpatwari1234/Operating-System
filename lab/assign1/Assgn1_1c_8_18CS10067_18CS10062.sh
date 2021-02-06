@@ -1,0 +1,1 @@
+awk -v i=$2 '{print tolower($i)}' $1|sort|uniq -c|sort -r|awk '{print $2,$1}'>1c_output_${2%}_column.freq
