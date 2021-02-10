@@ -25,7 +25,7 @@ static int64_t ticks;
 static bool compare_ticks(struct list_elem *a, struct list_elem *b);   
 
 /*List to keep track of threads*/
-struct list thread_list;    
+struct list sleeping_threads;    
 /* Code ended */
 
 /* Number of loops per timer tick.
@@ -47,7 +47,7 @@ timer_init (void)
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
 
   /* Code added */
-  list_init(&thread_list);
+  list_init(&sleeping_threads);
   /* Code ended */
 
 }
@@ -125,7 +125,7 @@ timer_sleep (int64_t ticks)
   t->abs_ticks = start + ticks;   // assign absolute time, for which the process should sleep
   
   intr_disable();   
-  list_insert_ordered(&thread_list, &t->elem, compare_ticks, NULL);
+  list_insert_ordered(&sleeping_threads, &t->elem, compare_ticks, NULL);
   thread_block();
   intr_enable();
   
@@ -211,13 +211,13 @@ timer_interrupt (struct intr_frame *args UNUSED)
   thread_tick ();
   
   struct thread *t;
-  while(!list_empty(&thread_list)) {
+  while(!list_empty(&sleeping_threads)) {
     
-    t = list_entry(list_front(&thread_list), struct thread, elem);
+    t = list_entry(list_front(&sleeping_threads), struct thread, elem);
     if (timer_ticks() < t->abs_ticks)
       break;
     
-    list_pop_front (&thread_list);
+    list_pop_front (&sleeping_threads);
     thread_unblock(t);
   }
   
