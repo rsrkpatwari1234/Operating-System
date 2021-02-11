@@ -1,0 +1,32 @@
+Status:
+
+Running on local PC using Ubuntu 16.04 and Qemu 2.5.0 version.
+Check the src folder of Pintos present in this folder.
+
+==============================================================================
+
+References for design doc: 
+
+https://github.com/divyang-mittal/Academics/blob/main/sixth%20sem/os%20lab/ass5/Lab_5_17CS10012_17CS30042/ALARM%20CLOCK.pdf
+
+https://github.com/ilyanep/pintos-awesome/blob/master/src/threads/DESIGNDOC
+
+https://github.com/diegs/cs140/blob/master/src/threads/DESIGNDOC
+
+================================================================================
+
+References for testing bugs:
+
+https://wiki.osdev.org/Shutdown
+
+================================================================================
+
+By default, Round Robin Scheduler is used to schedule threads to the CPU. It is a pre-emptive form of scheduling method that utilises timer_interrupt() to assign processes to CPU for ‘TIME_SLICE’ ticks at most. It executes timer_interrupt() at ‘TIME_FREQ’ (here,100) per second to check if the thread has used the CPU for more than ‘TIME_SLICE’ ticks. If true, an external interrupt is raised which is handled by an External Interrupt Handler(called programmable interrupt controllers,a pair of devices outside the CPU) to pre-empt the currently running thread and request a new process to be scheduled to the CPU by calling thread_yield().
+
+When a thread is allotted to the CPU, it calls timer_sleep(ticks) so that it can sleep for ‘ticks’ time and keep the CPU busy waiting during this time by calling thread_yield().
+thread_yield() moves the currently running process to the READY state and calls the scheduler function to assign a new/partially executed thread to the CPU.Now while a process is utilising the CPU, two cases can occur : 
+
+a)When timer_sleep() calls thread_yield() 
+The CPU is kept busy for ‘ticks’ time.Once ‘ticks’ time is over,the process executes successfully in the CPU whenever allotted to it again. In this case, timer_interrupt() cannot raise an interrupt as thread_yield() is called at every tick due to which ‘thread_ticks’ is initialised to 0.Hence ‘thread_ticks’ can never exceed TIME_SLICE (here 4 ticks per thread) 
+b)When timer_sleep() exits
+The waiting time of the process is already covered by the CPU and now it can execute successfully. While running it may happen that ‘thread_ticks’ become greater than or equal to ‘TIME_SLICE’ and an external interrupt is raised to pre-empt the running process and call the scheduler.
