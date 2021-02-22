@@ -1,0 +1,25 @@
+Status:
+
+Running on local PC using Ubuntu 16.04 and Qemu 2.5.0 version.
+
+==============================================================================
+
+Structure of code :
+
+Put fixed_point.h, thread.c, thread.h in src/threads
+Put timer.c in src/devices
+
+==============================================================================
+
+References for mlfqs code : part 2 : 
+
+https://github.com/Dhanya-Abhirami/Pintos - code understanding
+https://github.com/starry91/Pintos/tree/master/src
+https://jhu-cs318.github.io/pintos-doxygen/html/mlfqs-fair_8c.html  - flow working
+https://web.stanford.edu/class/cs140/projects/pintos/pintos_7.html  - calculations
+
+================================================================================
+
+Tests : 
+
+Run tests of src/tests/threads/
