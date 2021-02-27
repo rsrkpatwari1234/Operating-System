@@ -11,6 +11,9 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+/* Assignment 4 : Part 1 : Code added */
+#include "devices/timer.h"
+/* Assignment 4 : Part 1 : Code ended */
 /* Assignment 4 : Part 2 : Code added */
 #include "threads/fixed_point.h"
 /* Assignment 4 : Part 2 : Code ended */
@@ -39,6 +42,13 @@ static struct thread *initial_thread;
 
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
+
+/* Assignment 4 : Part 1 : Code added */
+
+/* Wakeup manegerial thread */
+struct thread* wakeup_thread; 
+
+/* Assignment 4 : Part 1 : Code ended */
 
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
@@ -146,9 +156,25 @@ thread_tick (void)
   else
     kernel_ticks++;
 
-  /* Enforce preemption. */
-  if (++thread_ticks >= TIME_SLICE)
+  /* Assignment 4 : Part 1 + Part 2: Code added */
+
+  thread_ticks++;
+
+  int64_t next_wakeup_time = get_wakeup_time();
+  
+  //check if there are any sleeping threads to be woken up
+  if(!thread_mlfqs && next_wakeup_time != -1 && next_wakeup_time <= timer_ticks()){
+    
+    //only unblock if it is blocked
+    if(wakeup_thread->status == THREAD_BLOCKED)
+      thread_unblock(wakeup_thread);
+    intr_yield_on_return(); //enforce preemption
+  }/* Enforce preemption. */
+  else if (thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
+
+  /* Assignment 4 : Part 1 + Part 2 : Code ended */
+  
 }
 
 /* Prints thread statistics. */
@@ -202,6 +228,11 @@ thread_create (const char *name, int priority,
      member cannot be observed. */
   //old_level = intr_disable ();
   /* Assignment 4 : Part 2 : Code ended */
+
+  /* Assignment 4 : Part 1 : Code added */
+  if(strcmp("wakeup_thread",name) == 0) 
+    wakeup_thread = t;
+  /* Assignment 4 : Part 1 : Code ended */
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -267,10 +298,10 @@ thread_unblock (struct thread *t)
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
 
-  /* Assignment 4 : Part 2 : Code added and removed*/
+  /* Assignment 4 : Part 1 + Part 2 : Code added and removed*/
   //list_push_back (&ready_list, &t->elem);
   list_insert_ordered(&ready_list, &t->elem, compare_thread_priority, NULL);
-  /* Assignment 4 : Part 2 : Code ended */
+  /* Assignment 4 : Part 1 + Part 2 : Code ended */
 
   t->status = THREAD_READY;
   intr_set_level (old_level);

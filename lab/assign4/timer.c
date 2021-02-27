@@ -28,6 +28,12 @@ static bool compare_ticks(struct list_elem *a, struct list_elem *b);
 struct list sleeping_threads;    
 /* Assignment 3 : Code ended */
 
+/* Assignment 4 : Part 1 : Code added */
+int64_t next_wakeup_time = -1;
+int64_t get_wakeup_time();
+void timer_wakeup();
+/* Assignment 4 : Part 1 : Code ended */
+
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
 static unsigned loops_per_tick;
@@ -49,6 +55,11 @@ timer_init (void)
   /* Assignment 3 : Code added */
   list_init(&sleeping_threads);
   /* Assignment 3 : Code ended */
+
+  /* Assignment 4 : Part 1 : Code added */
+  if(!thread_mlfqs)
+    thread_create("wakeup_thread",PRI_MAX,&timer_wakeup,NULL); //creating the wakeup thread
+  /* Assignment 4 : Part 1 : Code ended */
 
 }
 
@@ -106,6 +117,40 @@ compare_ticks(struct list_elem *a, struct list_elem *b){
 }
 /* Assignment 3 : Code ended*/
 
+/* Assignment 4 : Part 1 : Code added */
+int64_t get_wakeup_time(){
+  return next_wakeup_time;
+}
+
+//function for the managerial wakeup thread that wakes up the sleeping threads
+void timer_wakeup(){
+
+  while(1){
+    /* Check and wake up sleeping threads. */
+    struct thread *t;
+    while(!list_empty(&sleeping_threads)) {
+      
+      t = list_entry(list_front(&sleeping_threads), struct thread, elem);
+      if (timer_ticks() < t->abs_ticks)
+        break;
+      
+      list_pop_front (&sleeping_threads);
+      t->abs_ticks = 0;
+      thread_unblock(t);
+    }
+    //updating the next wakeup time   
+    if(!list_empty(&sleeping_threads))
+      next_wakeup_time = list_entry(list_front(&sleeping_threads),struct thread, elem)->abs_ticks;
+    else
+      next_wakeup_time = -1;
+
+    intr_disable(); //disabling interrupts
+    thread_block();
+    intr_enable(); //enabling the interrupts
+  }
+  
+}
+/* Assignment 4 : Part 1 : Code ended */
 
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
@@ -130,7 +175,14 @@ timer_sleep (int64_t ticks)
 
   /* Insert current thread to ordered sleeping list */
   list_insert_ordered(&sleeping_threads, &curr->elem, compare_ticks, NULL);
- 
+  
+  /* Assignment 4 : Part 1 : Code added */
+
+  /* Updating the next wakeup time */
+  next_wakeup_time = list_entry(list_front(&sleeping_threads),struct thread, elem)->abs_ticks;
+  
+  /* Assignment 4 : Part 1 : Code ended */
+  
   thread_block ();
 
   intr_set_level (old_level);
@@ -241,31 +293,31 @@ timer_interrupt (struct intr_frame *args UNUSED)
 
   /* Actions for Multilevel feedback queue scheduler. */
   if (thread_mlfqs)
-    {
+  {
 	  thread_mlfqs_incr_recent_cpu ();
 	  if (ticks % TIMER_FREQ == 0)
 	    thread_mlfqs_refresh ();
 	  else if (ticks % 4 == 0)
 	    thread_mlfqs_update_priority (thread_current ());
-	}
 
-  bool preempt = false;
+    bool preempt = false;
 
-  /* Check and wake up sleeping threads. */
-  struct thread *t;
-  while(!list_empty(&sleeping_threads)) {
-    
-    t = list_entry(list_front(&sleeping_threads), struct thread, elem);
-    if (timer_ticks() < t->abs_ticks)
-      break;
-    
-    list_pop_front (&sleeping_threads);
-    thread_unblock(t);
-    preempt = true;
+    /* Check and wake up sleeping threads. */
+    struct thread *t;
+    while(!list_empty(&sleeping_threads)) {
+      
+      t = list_entry(list_front(&sleeping_threads), struct thread, elem);
+      if (timer_ticks() < t->abs_ticks)
+        break;
+      
+      list_pop_front (&sleeping_threads);
+      thread_unblock(t);
+      preempt = true;
+    }
+
+    if (preempt)
+      intr_yield_on_return ();
   }
-
-  if (preempt)
-    intr_yield_on_return ();
 
   /* Assignment 3 : Code removed */
   /*ticks++;
