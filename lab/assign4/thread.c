@@ -405,11 +405,26 @@ thread_foreach (thread_action_func *func, void *aux)
 /* Assignment 4 : Part 2 : Comment added */
 /* Does not matter for MLFQS*/
 /* Assignment 4 : Part 2 : Comment removed */
+
+/* Assignment 4 : Part 2 : Comment added */
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  /* No need to change priority in case of mlfqs */
+  if(!thread_mlfqs){
+
+    /* update only when running in the priority mode */
+    thread_current ()->priority = new_priority;
+    if(!list_empty(&ready_list)){
+      struct thread *front_ele = list_entry(list_front(&ready_list), struct thread, elem);
+      
+      /* if the current thread has less priority than any ready thread, then preempt the current thread and schedule */
+      if(front_ele->priority > thread_get_priority())
+        thread_yield();
+    }
+  }
 }
+/* Assignment 4 : Part 2 : Comment ended */
 
 /* Returns the current thread's priority. */
 int
