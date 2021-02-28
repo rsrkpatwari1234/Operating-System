@@ -12,6 +12,8 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 /* Assignment 4 : Part 1 : Code added */
+/* we are including this, to share the get_next_wakeup_time function, and in turn
+   enable sharing of the NEXT_WAKEUP_TIME variable. */
 #include "devices/timer.h"
 /* Assignment 4 : Part 1 : Code ended */
 /* Assignment 4 : Part 2 : Code added */
@@ -45,7 +47,8 @@ static struct lock tid_lock;
 
 /* Assignment 4 : Part 1 : Code added */
 
-/* Wakeup manegerial thread */
+/* Wakeup thread: to manage unblocking of sleeping/blocked threads
+   as stored in the sleeping_threads list */
 struct thread* wakeup_thread; 
 
 /* Assignment 4 : Part 1 : Code ended */
@@ -160,12 +163,12 @@ thread_tick (void)
 
   thread_ticks++;
 
-  int64_t next_wakeup_time = get_wakeup_time();
+  int64_t NEXT_WAKEUP_TIME = get_next_wakeup_time();
   
   //check if there are any sleeping threads to be woken up
-  if(!thread_mlfqs && next_wakeup_time != -1 && next_wakeup_time <= timer_ticks()){
+  if(!thread_mlfqs && NEXT_WAKEUP_TIME != -1 && NEXT_WAKEUP_TIME <= timer_ticks()){
     
-    //only unblock if it is blocked
+    // only unblock if it is blocked, to avoid failing the ASSERT inside thread_unblock
     if(wakeup_thread->status == THREAD_BLOCKED)
       thread_unblock(wakeup_thread);
     intr_yield_on_return(); //enforce preemption
@@ -230,7 +233,8 @@ thread_create (const char *name, int priority,
   /* Assignment 4 : Part 2 : Code ended */
 
   /* Assignment 4 : Part 1 : Code added */
-  if(strcmp("wakeup_thread",name) == 0) 
+  if(strcmp("wakeup_thread", name) == 0) 
+    // we store the wakeup_thread in the designated variable by checking the name
     wakeup_thread = t;
   /* Assignment 4 : Part 1 : Code ended */
 

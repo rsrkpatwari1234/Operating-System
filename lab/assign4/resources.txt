@@ -7,7 +7,7 @@ Running on local PC using Ubuntu 16.04 and Qemu 2.5.0 version.
 Structure of code :
 
 Put fixed_point.h, thread.c, thread.h in src/threads
-Put timer.c in src/devices
+Put timer.c and timer.h in src/devices
 
 ==============================================================================
 
@@ -17,9 +17,18 @@ https://github.com/Dhanya-Abhirami/Pintos - code understanding
 https://github.com/starry91/Pintos/tree/master/src
 https://jhu-cs318.github.io/pintos-doxygen/html/mlfqs-fair_8c.html  - flow working
 https://web.stanford.edu/class/cs140/projects/pintos/pintos_7.html  - calculations
-
+https://github.com/heshamelsawaf/pintOS/blob/master/DESIGNDOC1.md - design doc
 ================================================================================
 
 Tests : 
 
 Run tests of src/tests/threads/
+Do 'make check' in src/threads/build
+
+=================================================================================
+
+Result :
+
+Check "test_cases_output.txt" for the output obtained for various test cases
+
+==================================================================================

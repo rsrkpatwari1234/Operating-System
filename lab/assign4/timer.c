@@ -29,9 +29,12 @@ struct list sleeping_threads;
 /* Assignment 3 : Code ended */
 
 /* Assignment 4 : Part 1 : Code added */
-int64_t next_wakeup_time = -1;
-int64_t get_wakeup_time();
-void timer_wakeup();
+// stores the earliest absolute time ticks, at which a thread needs to be unblocked. It is basically equal to the value of the front of the priority queue
+int64_t NEXT_WAKEUP_TIME = -1;
+// function to share the next wakeup time across files
+int64_t get_next_wakeup_time();
+// function executed by the wakeup_thread 
+void wakeup_thread_function();
 /* Assignment 4 : Part 1 : Code ended */
 
 /* Number of loops per timer tick.
@@ -57,8 +60,9 @@ timer_init (void)
   /* Assignment 3 : Code ended */
 
   /* Assignment 4 : Part 1 : Code added */
+  // wakeup thread is only created for part 1, (when mlfqs is not being tested)
   if(!thread_mlfqs)
-    thread_create("wakeup_thread",PRI_MAX,&timer_wakeup,NULL); //creating the wakeup thread
+    thread_create("wakeup_thread",PRI_MAX,&wakeup_thread_function,NULL); //creating the wakeup thread
   /* Assignment 4 : Part 1 : Code ended */
 
 }
@@ -118,12 +122,13 @@ compare_ticks(struct list_elem *a, struct list_elem *b){
 /* Assignment 3 : Code ended*/
 
 /* Assignment 4 : Part 1 : Code added */
-int64_t get_wakeup_time(){
-  return next_wakeup_time;
+// function definition of get_next_wakeup_time
+int64_t get_next_wakeup_time(){
+  return NEXT_WAKEUP_TIME;
 }
 
 //function for the managerial wakeup thread that wakes up the sleeping threads
-void timer_wakeup(){
+void wakeup_thread_function(){
 
   while(1){
     /* Check and wake up sleeping threads. */
@@ -140,9 +145,9 @@ void timer_wakeup(){
     }
     //updating the next wakeup time   
     if(!list_empty(&sleeping_threads))
-      next_wakeup_time = list_entry(list_front(&sleeping_threads),struct thread, elem)->abs_ticks;
+      NEXT_WAKEUP_TIME = list_entry(list_front(&sleeping_threads),struct thread, elem)->abs_ticks;
     else
-      next_wakeup_time = -1;
+      NEXT_WAKEUP_TIME = -1;
 
     intr_disable(); //disabling interrupts
     thread_block();
@@ -178,8 +183,9 @@ timer_sleep (int64_t ticks)
   
   /* Assignment 4 : Part 1 : Code added */
 
-  /* Updating the next wakeup time */
-  next_wakeup_time = list_entry(list_front(&sleeping_threads),struct thread, elem)->abs_ticks;
+  /* Updating the vaule of the next wake up time, according to the value of the front of the priority queue 
+     The front has least value of abs_ticks, i.e. it is to be woken first out of all sleeping threads */
+  NEXT_WAKEUP_TIME = list_entry(list_front(&sleeping_threads),struct thread, elem)->abs_ticks;
   
   /* Assignment 4 : Part 1 : Code ended */
   

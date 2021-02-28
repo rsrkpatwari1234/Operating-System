@@ -14,9 +14,8 @@ int64_t timer_ticks (void);
 int64_t timer_elapsed (int64_t);
 
 /* Assignment 4 : Part 1 : Code added */
-
-int64_t get_wakeup_time();
-
+// the getter function to allow sharing of NEXT_WAKEUPTIME across timer.c and thread.c
+int64_t get_next_wakeup_time();
 /* Assignment 4 : Part 1 : Code ended */
 
 /* Sleep and yield the CPU to other threads. */
