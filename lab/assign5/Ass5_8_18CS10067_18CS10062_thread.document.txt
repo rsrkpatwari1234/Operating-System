@@ -1,0 +1,135 @@
+
+Atharva Naik Roshan   18CS10067
+Radhika Patwari       18CS10062
+
+Assignment 5
+
+##################################################################################
+
+                                    DATA STRUCTURES
+                                    ===============
+
+>>>> Global definition of each process is same in Part 1 and Part 2 
+
+struct process_t{
+    int pid; // process id
+    int producer_number; // process number corresponding to no. of producers 
+    int priority; // priority of the number ( between 1 and 10 )
+    int compute_time; // the compute time
+    int jid; // the job id
+};
+
+------------------------------------------------------------------------------------
+
+>>>> Buffer structure is different in the 2 parts.
+
+Part 1 maintains an array of jobs such that jobs are present in the increasing order of their priority. 
+The job present at buffer-size()-1 is of highest priority and is consumed by the consumer 
+
+struct process_queue_buffer{
+    int size; // current buffer size (number of elements stored in buffer currently)
+    int job_created; // number of jobs created
+    int job_completed; // number of jobs completed
+    pthread_mutex_t mutex; // mutex
+    process_t  process_queue[QUEUE_SIZE]; // queue of processes
+};
+
+Part 2 maintains a priority_queue in form of max heap such that job with maximum priority is at the root of the max heap
+
+struct process_queue_buffer{
+    int size; // current buffer size (number of elements stored in buffer currently)
+    int job_created; // number of jobs created
+    int job_completed; // number of jobs completed
+    pthread_mutex_t mutex; // mutex
+    priority_queue<process_t, vector<process_t>, ComparePriority> process_queue; // priority queue of processes
+};
+
+------------------------------------------------------------------------------------
+
+>>>> Mutex is declared globally for both process and thread implementations
+
+pthread_mutex_t    *mutex_ptr; // pointer to mutex
+pthread_mutexattr_t mutex_attr; // mutex attribute
+
+------------------------------------------------------------------------------------
+
+>>>> Accessing buffer differently in Part 1 and Part 2
+
+Buffer is declared using shared memory in Part 1.All jobs created need to access this common shared space
+
+key_t key = ftok("shmfile", 65); // generate key for creating shared memory
+int shmid = shmget(key, 1024, 0666|IPC_CREAT); // create shared memory segment 
+process_queue_buffer * buffer=(process_queue_buffer *) shmat(shmid, (void*)0,0); 
+
+In Part 2, a global buffer is declared as this global region is common for all threads and can be accessed directly
+
+process_queue_buffer* buffer = new process_queue_buffer;
+
+------------------------------------------------------------------------------------
+
+>>>> NJOBS, producer_count and consumer_count are used as global variables in Part 2 so that they can be accessed across producer_task() and consumer_task() funtions . In Part 1 , they can be local to main()
+
+------------------------------------------------------------------------------------
+
+>>>> 2 separate p_thread arrays of size NP and NC are created in Part 2 to keep track of identifiers of threads created. Not needed in Part 1
+
+------------------------------------------------------------------------------------
+
+>>>> In Part 1, fork() is used to create (NP+NC) child processes for producers and consumers. In Part 2, 2 separate functions (void *)producer_task() and (void *)consumer_task() are created and passed as parameters in thread_create() function for creating (NP+NC) threads corresponding to producers and consumers
+
+------------------------------------------------------------------------------------
+
+>>>> Maintaining of jobs of maximum priority varies for Part 1 and Part 2
+
+Part 1 : uses an array of storing jobs
+
+process_t  process_queue[QUEUE_SIZE]; // queue of processes
+
+Part 2 : uses a priority queue for storing jobs
+
+priority_queue<process_t, vector<process_t>, ComparePriority> process_queue; // priority queue of processes
+
+#################################################################################
+
+                                        ALGORITHM
+                                        ==========
+
+>>>> fork() syscalls are replaced by pthread_create() function of pthread library for creating the same number of processes and threads respectively
+
+------------------------------------------------------------------------------------
+
+>>>> Insertion and removal of jobs from buffer
+
+Part 1 : 
+- process_queue is an array of fixed QUEUE_SIZE to maintain jobs
+- insert_sorted_buffer() inserts jobs in the process_queue[] in increasing order of job priority and updates buffer->size
+- remove_sorted_buffer() removes the job from process_queue[] from (buffer->size()-1) position and updates buffer->size
+- time complexity for insertion : O(QUEUE_SIZE) and deletion : O(1)
+
+Part 2 :
+- process_queue is a priority queue of STL library structurally present as a max heap of max no. of elements = QUEUE_SIZE
+- ComparePriority struct maintains the max heap structure corresponding to job priority values
+- insert_in_buffer() inserts the job in process_queue such that job with max priority is at the root of the queue and updates buffer->size
+- remove_from_buffer() removes the top most element of process_queue and maintains buffer_size
+- time complexity for insertion : O(log QUEUE_SIZE) and deletion : O(log QUEUE_SIZE)
+
+------------------------------------------------------------------------------------
+
+>>>> Work done by Producer : same for both Part 1 and Part 2
+
+- create  a job and use mutex lock before entering the critical section 
+- if jobs are finished, simply unlock the mutex and exit
+- else if buffer is already full, unlock the mutex and wait for buffer to become empty
+- else enter the new  job in the array and then unlock the mutex
+
+------------------------------------------------------------------------------------
+
+>>>> Work done by Consumer : same for both Part 1 and Part 2
+
+- lock the mutex before entering critical section
+- if all jobs are consumed, unlock the mutex and exit
+- else if buffer is empty, unlock mutex and wait for buffer to contain atleast 1 job
+- else simply consume the job and then unlock the mutex
+
+#################################################################################
+
