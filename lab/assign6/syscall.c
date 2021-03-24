@@ -57,7 +57,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   int* p = f->esp;
   check_addr(p);
   int system_call = *p;
-  printf("here %d",system_call);
+  printf("\nsyscall : %d\n",system_call);
 
   switch (system_call)
   {    
@@ -107,7 +107,7 @@ syscall_handler (struct intr_frame *f UNUSED)
         }
       }*/
       break;
-      
+    
     default:
       printf ("Not defined system call!\n");
       break;

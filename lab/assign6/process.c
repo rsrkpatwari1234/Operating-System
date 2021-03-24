@@ -18,6 +18,11 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
+/* Assignment 6 : 2.4 started */
+/*#include "threads/malloc.h"
+#include "userprog/syscall.h"*/
+/* Assignment 6 : 2.4 ended */
+
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -38,10 +43,36 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  /* Assignment 6 : 2.4 started */
+
+  char *save_ptr;
+  char *f_name;
+  f_name = malloc(strlen(file_name)+1);
+
+  strlcpy (f_name, file_name, strlen(file_name)+1);
+
+  f_name = strtok_r (f_name," ",&save_ptr);
+  /*printf("string : %s",fn_copy);*/
+
+  //printf("%d\n", thread_current()->tid);
+  tid = thread_create (f_name, PRI_DEFAULT, start_process, fn_copy);
+  free(f_name);
+
+  /* Assignment 6 : 2.4 ended */
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  /*tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);*/
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
+
+  /* Assignment 6 : 2.4 started */
+  /*sema_down(&thread_current()->child_lock);
+
+  if(!thread_current()->success)
+    return -1;*/
+
+  /* Assignment 6 : 2.4 ended */
+
   return tid;
 }
 
@@ -65,6 +96,20 @@ start_process (void *file_name_)
   palloc_free_page (file_name);
   if (!success) 
     thread_exit ();
+
+  /* Assignment 6 : 2.4 started */
+  /*if (!success) {
+    //printf("%d %d\n",thread_current()->tid, thread_current()->parent->tid);
+    thread_current()->parent->success=false;
+    sema_up(&thread_current()->parent->child_lock);
+    thread_exit();
+  }
+  else
+  {
+    thread_current()->parent->success=true;
+    sema_up(&thread_current()->parent->child_lock);
+  }*/
+  /* Assignment 6 : 2.4 ended */
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -198,7 +243,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
+static bool setup_stack (void **esp, char *file_name);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -223,9 +268,25 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (t->pagedir == NULL) 
     goto done;
   process_activate ();
-
+  
+  /* Assignment 6 : 2.4 started */
+  //printf("inside load : %s",file_name);
+  /* Assignment 6 : 2.4 ended */
   /* Open executable file. */
-  file = filesys_open (file_name);
+
+  /* Assignment 6 : 2.4 started */
+  char * fn_cp = malloc (strlen(file_name)+1);
+  strlcpy(fn_cp, file_name, strlen(file_name)+1);
+  
+  char * save_ptr;
+  fn_cp = strtok_r(fn_cp," ",&save_ptr);
+
+  file = filesys_open (fn_cp);
+
+  free(fn_cp);
+
+  /* Assignment 6 : 2.4 ended */
+
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);
@@ -304,9 +365,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
         }
     }
 
+  /* Assignment 6 : 2.4 started */
   /* Set up stack. */
-  if (!setup_stack (esp))
+  if (!setup_stack (esp, file_name))
     goto done;
+  /* Assignment 6 : 2.4 ended */
 
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
@@ -430,7 +493,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp) 
+setup_stack (void **esp, char *file_name) 
 {
   uint8_t *kpage;
   bool success = false;
@@ -440,10 +503,67 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE - 12;    /* Assignment 6 : 2.4 */
+        /* Assignment 6 : 2.4 started */
+        *esp = PHYS_BASE;    /* Assignment 6 : 2.4 -12*/
+        /* Assignment 6 : 2.4 started */
       else
         palloc_free_page (kpage);
     }
+
+  char *token, *save_ptr;
+  int argc = 0,i;
+
+  char * copy = malloc(strlen(file_name)+1);
+  strlcpy (copy, file_name, strlen(file_name)+1);
+
+
+  for (token = strtok_r (copy, " ", &save_ptr); token != NULL;
+    token = strtok_r (NULL, " ", &save_ptr))
+    argc++;
+
+
+  int *argv = calloc(argc,sizeof(int));
+
+  for (token = strtok_r (file_name, " ", &save_ptr),i=0; token != NULL;
+    token = strtok_r (NULL, " ", &save_ptr),i++)
+    {
+      *esp -= strlen(token) + 1;
+      memcpy(*esp,token,strlen(token) + 1);
+
+      argv[i]=*esp;
+    }
+
+  while((int)*esp%4!=0)
+  {
+    *esp-=sizeof(char);
+    char x = 0;
+    memcpy(*esp,&x,sizeof(char));
+  }
+
+  int zero = 0;
+
+  *esp-=sizeof(int);
+  memcpy(*esp,&zero,sizeof(int));
+
+  for(i=argc-1;i>=0;i--)
+  {
+    *esp-=sizeof(int);
+    memcpy(*esp,&argv[i],sizeof(int));
+  }
+
+  int pt = *esp;
+  *esp-=sizeof(int);
+  memcpy(*esp,&pt,sizeof(int));
+
+  *esp-=sizeof(int);
+  memcpy(*esp,&argc,sizeof(int));
+
+  *esp-=sizeof(int);
+  memcpy(*esp,&zero,sizeof(int));
+
+  free(copy);
+  free(argv);
+
   return success;
 }
 
