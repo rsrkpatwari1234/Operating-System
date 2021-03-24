@@ -53,9 +53,9 @@ struct thread* wakeup_thread;
 
 /* Assignment 4 : Part 1 : Code ended */
 
-/* Assignment 6 : 2.4 started */
+/* Assignment 6 : Part 1 started */
 struct lock filesys_lock;
-/* Assignment 6 : 2.4 ended */
+/* Assignment 6 : Part 1 ended */
 
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
@@ -117,9 +117,9 @@ thread_init (void)
   list_init (&ready_list);
   list_init (&all_list);
 
-  /* Assignment 6 : 2.4 started */
+  /* Assignment 6 : Part 1 started */
   lock_init(&filesys_lock);
-  /* Assignment 6 : 2.4 ended */
+  /* Assignment 6 : Part 1 ended */
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -233,13 +233,13 @@ thread_create (const char *name, int priority,
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
 
-  /* Assignment 6 : 2.4 started */
-  /*struct child* c = malloc(sizeof(*c));
+  /* Assignment 6 : Part 1 started */
+  struct child* c = malloc(sizeof(*c));
   c->tid = tid;
   c->exit_error = t->exit_error;
   c->used = false;
-  list_push_back (&running_thread()->child_proc, &c->elem);*/
-  /* Assignment 6 : 2.4 ended */
+  list_push_back (&running_thread()->child_proc, &c->elem);
+  /* Assignment 6 : Part 1 ended */
 
 
   /* Assignment 4 : Part 2 : Code removed */
@@ -372,14 +372,14 @@ thread_exit (void)
   process_exit ();
 #endif
 
-  /* Assignment 6 : 2.4 started */
+  /* Assignment 6 : Part 1 started */
 
-  /*while(!list_empty(&thread_current()->child_proc)){
+  while(!list_empty(&thread_current()->child_proc)){
     struct proc_file *f = list_entry (list_pop_front(&thread_current()->child_proc), struct child, elem);
     free(f);
-  }*/
+  }
 
-  /* Assignment 6 : 2.4 ended */
+  /* Assignment 6 : Part 1 ended */
 
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
@@ -695,23 +695,25 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
-  /* Assignment 4 : Part 2 : Code added */
-  t->nice = 0;
-  t->recent_cpu = FP_CONST (0);
+  /* Assignment 6 : Part 1 started */
 
-  enum intr_level old_level = intr_disable ();
-  /* Assignment 4 : Part 2 : Code ended */
-
-  /* Assignment 6 : 2.4 started */
-  /*list_init (&t->child_proc);
+  list_init (&t->child_proc);
   t->parent = running_thread();
   list_init (&t->files);
   t->fd_count=2;
   t->exit_error = -100;
   sema_init(&t->child_lock,0);
   t->waitingon=0;
-  t->self=NULL;*/
-  /* Assignment 6 : 2.4 ended */
+  t->self=NULL;
+
+  /* Assignment 6 : Part 1 ended */
+
+  /* Assignment 4 : Part 2 : Code added */
+  t->nice = 0;
+  t->recent_cpu = FP_CONST (0);
+
+  enum intr_level old_level = intr_disable ();
+  /* Assignment 4 : Part 2 : Code ended */
 
   list_push_back (&all_list, &t->allelem);
 

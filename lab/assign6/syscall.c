@@ -10,6 +10,7 @@
 #include "userprog/pagedir.h"
 #include "userprog/process.h"
 #include <user/syscall.h>
+#include "list.h"
 
 /*#define MAX_ARGS 3*/
 #define STD_INPUT 0
@@ -20,6 +21,17 @@ int syscall_write (int filedes, int buffer, int byte_size);
 void validate_ptr (const void* vaddr);
 void validate_buffer (const void* buf, unsigned byte_size);
 void* check_addr(const void*);
+
+struct proc_file* list_search(struct list* files, int fd);
+
+extern bool running;
+
+struct proc_file {
+  struct file* ptr;
+  int fd;
+  struct list_elem elem;
+};
+
 
 /* Assignment 6 : 2.4 ended */
 
@@ -51,63 +63,29 @@ syscall_handler (struct intr_frame *f UNUSED)
 
   /* Assignment 6 : 2.4 started */
 
-  /*int arg[MAX_ARGS];
-  int esp = getpage_ptr((const void *) f->esp);*/
-
   int* p = f->esp;
   check_addr(p);
   int system_call = *p;
-  printf("\nsyscall : %d\n",system_call);
+  //printf("\nsyscall : %d\n",system_call);
 
   switch (system_call)
   {    
     case SYS_EXIT:
-      // fill arg with the amount of arguments needed
-      //get_args(f, &arg[0], 1);
       check_addr(p+1);
       syscall_exit(*(p+1));
       break;
-       
+    
     case SYS_WRITE:
-      
-      // fill arg with the amount of arguments needed
-      /*get_args(f, &arg[0], 3);
-      printf("-1-");*/
-      /* Check if the buffer is valid.
-       * We do not want to mess with a buffer that is out of our
-       * reserved virtual memory 
-       */
-      /*validate_buffer((const void*)arg[1], (unsigned)arg[2]);
-      printf("-2-");*/
-      // get page pointer
-      /*arg[1] = getpage_ptr((const void *)arg[1]); 
-      printf("-3-");*/
       check_addr(p+7);
       check_addr(p+6);
-      f->eax = syscall_write (*(p+5), *(p+6), *(p+7));
-      /*f->eax = syscall_write(arg[0], (const void *) arg[1], (unsigned) arg[2]);
-      printf("-4-");*/
-      /*check_addr(p+7);
-      check_addr(p+6);
-      if(*(p+5)==1)
-      {
-        putbuf(*(p+6),*(p+7));
-        f->eax = *(p+7);
-      }*/
-      /*else
-      {
-        struct proc_file* fptr = list_search(&thread_current()->files, *(p+5));
-        if(fptr==NULL)
-          f->eax=-1;
-        else
-        {
-          acquire_filesys_lock();
-          f->eax = file_write (fptr->ptr, *(p+6), *(p+7));
-          release_filesys_lock();
-        }
-      }*/
+      f->eax = syscall_write(*(p+5), *(p+6), *(p+7));
       break;
     
+    case SYS_EXEC:
+      check_addr(p+1);
+      f->eax = syscall_exec(*(p+1));
+      break;
+
     default:
       printf ("Not defined system call!\n");
       break;
@@ -136,31 +114,102 @@ get_args (struct intr_frame *f, int *args, int num_of_args)
  * Checks if the current thread to exit is a child.
  * If so update the child's parent information accordingly.
  */
-void
+/*void
 syscall_exit (int status)
 {
   struct thread *cur = thread_current();
   printf("%s: exit(%d)\n", cur->name, status);
   thread_exit();
+}*/
+
+void syscall_exit(int status)
+{
+  //printf("Exit : %s %d %d\n",thread_current()->name, thread_current()->tid, status);
+
+  /* Assignment 6 : Part 1 started */
+
+  struct list_elem *e;
+
+  for (e = list_begin (&thread_current()->parent->child_proc); e != list_end (&thread_current()->parent->child_proc);
+       e = list_next (e))
+  {
+    struct child *f = list_entry (e, struct child, elem);
+    if(f->tid == thread_current()->tid)
+    {
+      f->used = true;
+      f->exit_error = status;
+    }
+  }
+
+  thread_current()->exit_error = status;
+
+  // parent process unblock
+  if(thread_current()->parent->waitingon == thread_current()->tid)
+    sema_up(&thread_current()->parent->child_lock);
+
+  /* Assignment 6 : Part 1 ended */
+
+  printf("%s: exit(%d)\n", thread_current()->name, status);
+
+  thread_exit();
 }
 
 /* syscall_write */
-int 
-syscall_write (int filedes, int buffer, int byte_size)
+int syscall_write (int filedes, int buffer, int byte_size)
 {
     if (byte_size <= 0)
     {
       return byte_size;
     }
-    if (filedes != STD_OUTPUT)
+    /*if (filedes != STD_OUTPUT)
     {
       printf("Writing to console only for now!");
       syscall_exit(ERROR);
+    }*/
+    if(filedes == STD_OUTPUT)
+    {
+      putbuf(buffer, byte_size);
+      return byte_size;
     }
-    putbuf (buffer, byte_size); // from stdio.h
-    return byte_size;
+    else
+    {
+      struct proc_file* fptr = list_search(&thread_current()->files, filedes);
+      if(fptr==NULL)
+        syscall_exit(ERROR);
+      else
+      {
+        acquire_filesys_lock();
+        int val = file_write (fptr->ptr, buffer, byte_size);
+        release_filesys_lock();
+        return val;
+      }
+    }
+    return 0;
 }
 
+int syscall_exec(char *file_name)
+{
+  acquire_filesys_lock();
+  char * fn_cp = malloc (strlen(file_name)+1);
+  strlcpy(fn_cp, file_name, strlen(file_name)+1);
+  
+  char * save_ptr;
+  fn_cp = strtok_r(fn_cp," ",&save_ptr);
+
+  struct file* f = filesys_open (fn_cp);
+
+  if(f==NULL)
+  {
+    release_filesys_lock();
+    syscall_exit(ERROR);
+  }
+  else
+  {
+    file_close(f);
+    release_filesys_lock();
+    return process_execute(file_name);
+  }
+}
 
 /* function to check if pointer is valid */
 void
@@ -209,9 +258,44 @@ void* check_addr(const void *vaddr)
   if (!ptr)
   {
     syscall_exit(ERROR);
-    return 0;
   }
   return ptr;
 }
 
+struct proc_file* list_search(struct list* files, int fd)
+{
+
+  struct list_elem *e;
+
+      for (e = list_begin (files); e != list_end (files);
+           e = list_next (e))
+        {
+          struct proc_file *f = list_entry (e, struct proc_file, elem);
+          if(f->fd == fd)
+            return f;
+        }
+   return NULL;
+}
+
+
+void close_all_files(struct list* files)
+{
+
+  struct list_elem *e;
+
+  while(!list_empty(files))
+  {
+    e = list_pop_front(files);
+
+    struct proc_file *f = list_entry (e, struct proc_file, elem);
+          
+          file_close(f->ptr);
+          list_remove(e);
+          free(f);
+
+
+  }
+
+      
+}
 /* Assignment 6 : 2.4 ended */

@@ -184,7 +184,6 @@ void thread_mlfqs_refresh(void);
 bool compare_thread_priority(struct list_elem *a, struct list_elem *b);
 /* Assignment 4 : Part 2 : Code ended */
 
-
 /* Assignment 6 : 2.4 started */
 struct child {
   int tid;

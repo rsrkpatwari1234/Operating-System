@@ -19,12 +19,12 @@
 #include "threads/vaddr.h"
 
 /* Assignment 6 : 2.4 started */
-/*#include "threads/malloc.h"
-#include "userprog/syscall.h"*/
+extern struct list all_list;
 /* Assignment 6 : 2.4 ended */
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -65,13 +65,13 @@ process_execute (const char *file_name)
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
 
-  /* Assignment 6 : 2.4 started */
-  /*sema_down(&thread_current()->child_lock);
+  /* Assignment 6 : Part 1 started */
+  sema_down(&thread_current()->child_lock);
 
   if(!thread_current()->success)
-    return -1;*/
+    return -1;
 
-  /* Assignment 6 : 2.4 ended */
+  /* Assignment 6 : Part 1 ended */
 
   return tid;
 }
@@ -94,11 +94,14 @@ start_process (void *file_name_)
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
-    thread_exit ();
 
-  /* Assignment 6 : 2.4 started */
-  /*if (!success) {
+  /* Assignment 6 : 2.4 started : not used in Part 1*/
+  /*if (!success) 
+    thread_exit ();*/
+  /* Assignment 6 : 2.4 ended */
+
+  /* Assignment 6 : Part 1 started */
+  if (!success) {
     //printf("%d %d\n",thread_current()->tid, thread_current()->parent->tid);
     thread_current()->parent->success=false;
     sema_up(&thread_current()->parent->child_lock);
@@ -108,8 +111,8 @@ start_process (void *file_name_)
   {
     thread_current()->parent->success=true;
     sema_up(&thread_current()->parent->child_lock);
-  }*/
-  /* Assignment 6 : 2.4 ended */
+  }
+  /* Assignment 6 : Part 1 ended */
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -134,9 +137,43 @@ int
 process_wait (tid_t child_tid UNUSED) 
 {
   /* Assignment 6 : 2.4 started */
-  while(1);  
+  //while(1);  
   /* Assignment 6 : 2.4 ended */
-  return -1;
+  //return -1;
+
+  /* Assignment 6 : Part 1 started */
+  printf("Wait : %s %d\n",thread_current()->name, child_tid);
+  struct list_elem *e;
+
+  struct child *ch=NULL;
+  struct list_elem *e1=NULL;
+
+  for (e = list_begin (&thread_current()->child_proc); e != list_end (&thread_current()->child_proc);
+           e = list_next (e))
+        {
+          struct child *f = list_entry (e, struct child, elem);
+          if(f->tid == child_tid)
+          {
+            ch = f;
+            e1 = e;
+          }
+        }
+
+
+  if(!ch || !e1)
+    return -1;
+
+  thread_current()->waitingon = ch->tid;
+    
+  if(!ch->used)
+    sema_down(&thread_current()->child_lock);
+
+  int temp = ch->exit_error;
+  list_remove(e1);
+  
+  return temp;
+
+  /* Assignment 6 : Part 1 ended */
 }
 
 /* Free the current process's resources. */
@@ -145,6 +182,21 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+
+  /* Assignment 6 : Part 1 started */
+
+  if(cur->exit_error==-100)
+      syscall_exit(-1);
+
+  int exit_code = cur->exit_error;
+  printf("%s: exit(%d)\n",cur->name,exit_code);
+
+  acquire_filesys_lock();
+  file_close(thread_current()->self);
+  close_all_files(&thread_current()->files);
+  release_filesys_lock();
+
+  /* Assignment 6 : Part 1 ended */
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -263,15 +315,16 @@ load (const char *file_name, void (**eip) (void), void **esp)
   bool success = false;
   int i;
 
+  /* Assignment 6 : Part 1 started */
+  acquire_filesys_lock();
+  /* Assignment 6 : Part 1 ended */
+
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
     goto done;
   process_activate ();
   
-  /* Assignment 6 : 2.4 started */
-  //printf("inside load : %s",file_name);
-  /* Assignment 6 : 2.4 ended */
   /* Open executable file. */
 
   /* Assignment 6 : 2.4 started */
@@ -376,9 +429,20 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   success = true;
 
+  /* Assignment 6 : Part 1 started */
+  file_deny_write(file);
+
+  thread_current()->self = file;
+  /* Assignment 6 : Part 1 ended */
+
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  //file_close (file);
+
+  /* Assignment 6 : Part 1 started */
+  release_filesys_lock();
+  /* Assignment 6 : Part 1 ended */
+
   return success;
 }
 
@@ -510,6 +574,7 @@ setup_stack (void **esp, char *file_name)
         palloc_free_page (kpage);
     }
 
+  /* Assignment 6 : Part 1 started */
   char *token, *save_ptr;
   int argc = 0,i;
 
@@ -563,6 +628,8 @@ setup_stack (void **esp, char *file_name)
 
   free(copy);
   free(argv);
+
+  /* Assignment 6 : Part 1 ended */
 
   return success;
 }
