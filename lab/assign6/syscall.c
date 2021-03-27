@@ -86,6 +86,11 @@ syscall_handler (struct intr_frame *f UNUSED)
       f->eax = syscall_exec(*(p+1));
       break;
 
+    case SYS_WAIT:
+      check_addr(p+1);
+      f->eax = process_wait(*(p+1));
+      break;
+
     default:
       printf ("Not defined system call!\n");
       break;
@@ -149,7 +154,7 @@ void syscall_exit(int status)
 
   /* Assignment 6 : Part 1 ended */
 
-  printf("%s: exit(%d)\n", thread_current()->name, status);
+  // printf("%s: exit(%d)\n", thread_current()->name, status);
 
   thread_exit();
 }
@@ -296,6 +301,5 @@ void close_all_files(struct list* files)
 
   }
 
-      
 }
 /* Assignment 6 : 2.4 ended */
