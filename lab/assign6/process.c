@@ -142,7 +142,7 @@ process_wait (tid_t child_tid UNUSED)
   //return -1;
 
   /* Assignment 6 : Part 1 started */
-  printf("Wait : %s %d\n",thread_current()->name, child_tid);
+  // printf("Wait : %s %d\n",thread_current()->name, child_tid);
   struct list_elem *e;
 
   struct child *ch=NULL;
