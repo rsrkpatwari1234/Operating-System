@@ -18,13 +18,8 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
-/* Assignment 6 : 2.4 started */
-extern struct list all_list;
-/* Assignment 6 : 2.4 ended */
-
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
-
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -52,9 +47,10 @@ process_execute (const char *file_name)
   strlcpy (f_name, file_name, strlen(file_name)+1);
 
   f_name = strtok_r (f_name," ",&save_ptr);
-  /*printf("string : %s",fn_copy);*/
 
+  //printf("string : %s",fn_copy);
   //printf("%d\n", thread_current()->tid);
+
   tid = thread_create (f_name, PRI_DEFAULT, start_process, fn_copy);
   free(f_name);
 
@@ -189,12 +185,7 @@ process_exit (void)
       syscall_exit(-1);
 
   int exit_code = cur->exit_error;
-  printf("%s: exit(%d)\n",cur->name,exit_code);
-
-  acquire_filesys_lock();
-  file_close(thread_current()->self);
-  close_all_files(&thread_current()->files);
-  release_filesys_lock();
+  //printf("%s: exit(%d)\n",cur->name,exit_code);
 
   /* Assignment 6 : Part 1 ended */
 
@@ -429,15 +420,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   success = true;
 
-  /* Assignment 6 : Part 1 started */
-  file_deny_write(file);
-
-  thread_current()->self = file;
-  /* Assignment 6 : Part 1 ended */
-
  done:
   /* We arrive here whether the load is successful or not. */
-  //file_close (file);
+  file_close (file);
 
   /* Assignment 6 : Part 1 started */
   release_filesys_lock();

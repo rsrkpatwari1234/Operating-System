@@ -436,7 +436,7 @@ thread_foreach (thread_action_func *func, void *aux)
 /* Does not matter for MLFQS*/
 /* Assignment 4 : Part 2 : Comment removed */
 
-/* Assignment 4 : Part 2 : Comment added */
+/* Assignment 4 : Part 2 : Code added */
 void
 thread_set_priority (int new_priority) 
 {
@@ -454,7 +454,7 @@ thread_set_priority (int new_priority)
     }
   }
 }
-/* Assignment 4 : Part 2 : Comment ended */
+/* Assignment 4 : Part 2 : Code ended */
 
 /* Returns the current thread's priority. */
 int
@@ -699,12 +699,12 @@ init_thread (struct thread *t, const char *name, int priority)
 
   list_init (&t->child_proc);
   t->parent = running_thread();
-  list_init (&t->files);
+  //list_init (&t->files);
   t->fd_count=2;
   t->exit_error = -100;
   sema_init(&t->child_lock,0);
   t->waitingon=0;
-  t->self=NULL;
+  //t->self=NULL;
 
   /* Assignment 6 : Part 1 ended */
 

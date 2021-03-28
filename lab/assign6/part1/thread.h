@@ -119,9 +119,6 @@ struct thread
     struct list child_proc;
     struct thread* parent;
 
-    struct file *self;
-
-    struct list files;
     int fd_count;
 
     struct semaphore child_lock;

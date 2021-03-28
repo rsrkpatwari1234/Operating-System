@@ -12,26 +12,13 @@
 #include <user/syscall.h>
 #include "list.h"
 
-/*#define MAX_ARGS 3*/
 #define STD_INPUT 0
 #define STD_OUTPUT 1
 
-void get_args (struct intr_frame *f, int *arg, int num_of_args);
+void syscall_exit(int status);
 int syscall_write (int filedes, int buffer, int byte_size);
-void validate_ptr (const void* vaddr);
-void validate_buffer (const void* buf, unsigned byte_size);
+int syscall_exec(char *file_name);
 void* check_addr(const void*);
-
-struct proc_file* list_search(struct list* files, int fd);
-
-extern bool running;
-
-struct proc_file {
-  struct file* ptr;
-  int fd;
-  struct list_elem elem;
-};
-
 
 /* Assignment 6 : 2.4 ended */
 
@@ -101,31 +88,10 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 /* Assignment 6 : 2.4 started */
 
-/* get arguments from stack */
-void
-get_args (struct intr_frame *f, int *args, int num_of_args)
-{
-  int i;
-  int *ptr;
-  for (i = 0; i < num_of_args; i++)
-  {
-    ptr = (int *) f->esp + i + 1;
-    validate_ptr((const void *) ptr);
-    args[i] = *ptr;
-  }
-}
-
 /* System call exit 
  * Checks if the current thread to exit is a child.
  * If so update the child's parent information accordingly.
  */
-/*void
-syscall_exit (int status)
-{
-  struct thread *cur = thread_current();
-  printf("%s: exit(%d)\n", cur->name, status);
-  thread_exit();
-}*/
 
 void syscall_exit(int status)
 {
@@ -166,11 +132,6 @@ int syscall_write (int filedes, int buffer, int byte_size)
     {
       return byte_size;
     }
-    /*if (filedes != STD_OUTPUT)
-    {
-      printf("Writing to console only for now!");
-      syscall_exit(ERROR);
-    }*/
     if(filedes == STD_OUTPUT)
     {
       putbuf(buffer, byte_size);
@@ -178,18 +139,10 @@ int syscall_write (int filedes, int buffer, int byte_size)
     }
     else
     {
-      struct proc_file* fptr = list_search(&thread_current()->files, filedes);
-      if(fptr==NULL)
-        syscall_exit(ERROR);
-      else
-      {
-        acquire_filesys_lock();
-        int val = file_write (fptr->ptr, buffer, byte_size);
-        release_filesys_lock();
-        return val;
-      }
+      printf("Writing to console only for now!");
+      syscall_exit(ERROR);
     }
-    return 0;
+    return ERROR;
 }
 
 int syscall_exec(char *file_name)
@@ -216,42 +169,6 @@ int syscall_exec(char *file_name)
   }
 }
 
-/* function to check if pointer is valid */
-void
-validate_ptr (const void *vaddr)
-{
-    if (vaddr < USER_VADDR_BOTTOM || !is_user_vaddr(vaddr))
-    {
-      // virtual memory address is not reserved for us (out of bound)
-      syscall_exit(ERROR);
-    }
-}
-
-/* function to check if buffer is valid */
-void
-validate_buffer(const void* buf, unsigned byte_size)
-{
-  unsigned i = 0;
-  char* local_buffer = (char *)buf;
-  for (; i < byte_size; i++)
-  {
-    validate_ptr((const void*)local_buffer);
-    local_buffer++;
-  }
-}
-
-/* get the pointer to page */
-int
-getpage_ptr(const void *vaddr)
-{
-  void *ptr = pagedir_get_page(thread_current()->pagedir, vaddr);
-  if (!ptr)
-  {
-    syscall_exit(ERROR);
-  }
-  return (int)ptr;
-}
-
 void* check_addr(const void *vaddr)
 {
   if (!is_user_vaddr(vaddr))
@@ -267,39 +184,4 @@ void* check_addr(const void *vaddr)
   return ptr;
 }
 
-struct proc_file* list_search(struct list* files, int fd)
-{
-
-  struct list_elem *e;
-
-      for (e = list_begin (files); e != list_end (files);
-           e = list_next (e))
-        {
-          struct proc_file *f = list_entry (e, struct proc_file, elem);
-          if(f->fd == fd)
-            return f;
-        }
-   return NULL;
-}
-
-
-void close_all_files(struct list* files)
-{
-
-  struct list_elem *e;
-
-  while(!list_empty(files))
-  {
-    e = list_pop_front(files);
-
-    struct proc_file *f = list_entry (e, struct proc_file, elem);
-          
-          file_close(f->ptr);
-          list_remove(e);
-          free(f);
-
-
-  }
-
-}
 /* Assignment 6 : 2.4 ended */

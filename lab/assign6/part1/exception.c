@@ -148,12 +148,16 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-   // Set eip and eax values if in kernel mode as the test that emmory is valid is unsuccessful
-   if(!user) { // kernel mode
-     f->eip = (void *) f->eax;
-     f->eax = 0xffffffff;
-     return;
-   }
+  /* Assignment 6 : 2.4 started */
+
+  // Set eip and eax values if in kernel mode as the test that memory is valid is unsuccessful
+  if(!user) { // kernel mode
+   f->eip = (void *) f->eax;
+   f->eax = 0xffffffff;
+   return;
+  }
+
+  /* Assignment 6 : 2.4 ended */
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
