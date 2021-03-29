@@ -54,7 +54,7 @@ struct thread* wakeup_thread;
 /* Assignment 4 : Part 1 : Code ended */
 
 /* Assignment 6 : Part 1 started */
-struct lock filesys_lock;
+struct lock filesys_lock; // binary semaphore based lock to control file system access
 /* Assignment 6 : Part 1 ended */
 
 /* Stack frame for kernel_thread(). */
@@ -118,7 +118,7 @@ thread_init (void)
   list_init (&all_list);
 
   /* Assignment 6 : Part 1 started */
-  lock_init(&filesys_lock);
+  lock_init(&filesys_lock); // initialize file system lock
   /* Assignment 6 : Part 1 ended */
 
   /* Set up a thread structure for the running thread. */
@@ -234,11 +234,15 @@ thread_create (const char *name, int priority,
   tid = t->tid = allocate_tid ();
 
   /* Assignment 6 : Part 1 started */
+  /* this sippet of code allocates space to the child process struct, appends
+  it to the list of child processes and sets the necessary flags like the used,
+  and error_code flags. The parent of the newly created process is the currently 
+  running thread. */
   struct child* c = malloc(sizeof(*c));
   c->tid = tid;
-  c->exit_error = t->exit_error;
+  c->error_code = t->error_code;
   c->used = false;
-  list_push_back (&running_thread()->child_proc, &c->elem);
+  list_push_back (&running_thread()->child_processes, &c->elem);
   /* Assignment 6 : Part 1 ended */
 
 
@@ -373,12 +377,11 @@ thread_exit (void)
 #endif
 
   /* Assignment 6 : Part 1 started */
-
-  while(!list_empty(&thread_current()->child_proc)){
-    struct proc_file *f = list_entry (list_pop_front(&thread_current()->child_proc), struct child, elem);
+  // free memory occupied by the child processes, when the thread exits after finishing execution.
+  while(!list_empty(&thread_current()->child_processes)){
+    struct proc_file *f = list_entry (list_pop_front(&thread_current()->child_processes), struct child, elem);
     free(f);
   }
-
   /* Assignment 6 : Part 1 ended */
 
   /* Remove thread from all threads list, set our status to dying,
@@ -436,7 +439,7 @@ thread_foreach (thread_action_func *func, void *aux)
 /* Does not matter for MLFQS*/
 /* Assignment 4 : Part 2 : Comment removed */
 
-/* Assignment 4 : Part 2 : Code added */
+/* Assignment 4 : Part 2 : Comment added */
 void
 thread_set_priority (int new_priority) 
 {
@@ -454,7 +457,7 @@ thread_set_priority (int new_priority)
     }
   }
 }
-/* Assignment 4 : Part 2 : Code ended */
+/* Assignment 4 : Part 2 : Comment ended */
 
 /* Returns the current thread's priority. */
 int
@@ -696,14 +699,14 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
 
   /* Assignment 6 : Part 1 started */
-
-  list_init (&t->child_proc);
-  t->parent = running_thread();
+  // initlaize the list of the child processes
+  list_init (&t->child_processes);
+  t->parent = running_thread(); // set the current thread as the parent
   //list_init (&t->files);
-  t->fd_count=2;
-  t->exit_error = -100;
-  sema_init(&t->child_lock,0);
-  t->waitingon=0;
+  t->fd_count=2; // initalize all the flags
+  t->error_code = -100;
+  sema_init(&t->sema_child,0);
+  t->waiting_on_child=0;
   //t->self=NULL;
 
   /* Assignment 6 : Part 1 ended */
@@ -838,13 +841,13 @@ uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 
 /* Assignment 6 : 2.4 started */
-void acquire_filesys_lock()
+void acquire_filesys_lock() // function to acquire file system lock
 {
   lock_acquire(&filesys_lock);
 }
-
-void release_filesys_lock()
+void release_filesys_lock() // function to release the file system lock
 {
   lock_release(&filesys_lock);
-}
+} /* a lock of the type struct lock (basically a binary semaphore), 
+is used to manage access to the file system */
 /* Assignment 6 : 2.4 ended */

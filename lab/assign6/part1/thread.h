@@ -112,17 +112,18 @@ struct thread
     /* Assignment 4 : Part 2 : Code ended */
 
     /* Assignment 6 : 2.4 started */
-    bool success;
+    bool success; // stores whether child was able to load the executable or not.
     
-    int exit_error;
+    int error_code; // store error status 
 
-    struct list child_proc;
-    struct thread* parent;
+    struct list child_processes; // list of child processes.
+    struct thread* parent; // pointer to parent thread.
 
-    int fd_count;
+    struct list files; // list of files needed by the process.
+    int fd_count; // count of file descriptors.
 
-    struct semaphore child_lock;
-    int waitingon;
+    struct semaphore sema_child; // used to enforce waiting of parent process for the child processes.
+    int waiting_on_child; // store id of the child processes that the parent is waiting on.
     /* Assignment 6 : 2.4 ended */
 
 #ifdef USERPROG
@@ -182,11 +183,12 @@ bool compare_thread_priority(struct list_elem *a, struct list_elem *b);
 /* Assignment 4 : Part 2 : Code ended */
 
 /* Assignment 6 : 2.4 started */
-struct child {
-  int tid;
-  struct list_elem elem;
-  int exit_error;
-  bool used;
+struct child {  /*     structure to reperesent child process info. */
+  int tid;      // store id of the child process thread
+  struct list_elem elem; // the element is the actual structure stored in the child_process list attribute. (pointer to next and previous elements of the doubly linked list)
+  int error_code; // to store error code/status of exit/non-exit.
+  bool used; /* used for checking if the child process a parent is waiting on has finished executing.
+  it is used to decide on whether a sema_down call is needed on the sema_child semaphore. */
 };
 /* Assignment 6 : 2.4 ended */
 

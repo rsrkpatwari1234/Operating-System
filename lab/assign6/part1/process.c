@@ -33,43 +33,41 @@ process_execute (const char *file_name)
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = palloc_get_page (0);
-  if (fn_copy == NULL)
+  fn_copy = palloc_get_page (0); // acquire page for the process
+  if (fn_copy == NULL) // if page can't be acquired an error is returned, by sending tid_t of -1
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
   /* Assignment 6 : 2.4 started */
 
-  char *save_ptr;
-  char *f_name;
+  char *save_ptr; // needed by strtok_r
+  char *f_name; // fname is where the name of executable is stored.
   f_name = malloc(strlen(file_name)+1);
 
-  strlcpy (f_name, file_name, strlen(file_name)+1);
+  strlcpy (f_name, file_name, strlen(file_name)+1); // initialize fname as the executable_name+command_line_args
 
-  f_name = strtok_r (f_name," ",&save_ptr);
-
+  f_name = strtok_r (f_name," ",&save_ptr); // extract just the executable name into f_name
+  
   //printf("string : %s",fn_copy);
   //printf("%d\n", thread_current()->tid);
-
-  tid = thread_create (f_name, PRI_DEFAULT, start_process, fn_copy);
+  // start thread with thread function as start_process, which loads the executable file.
+  tid = thread_create (f_name, PRI_DEFAULT, start_process, fn_copy); // create thread with name of the executable file.
   free(f_name);
 
   /* Assignment 6 : 2.4 ended */
 
-  /* Create a new thread to execute FILE_NAME. */
-  /*tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);*/
-  if (tid == TID_ERROR)
+  if (tid == TID_ERROR) // if thread creation fails, free up the pagedir.
     palloc_free_page (fn_copy); 
 
   /* Assignment 6 : Part 1 started */
-  sema_down(&thread_current()->child_lock);
+  sema_down(&thread_current()->sema_child); // acquire the semaphore for the child.
 
   if(!thread_current()->success)
     return -1;
 
   /* Assignment 6 : Part 1 ended */
 
-  return tid;
+  return tid; // sucessful execution returns tid of created process
 }
 
 /* A thread function that loads a user process and starts it
@@ -86,7 +84,7 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  success = load (file_name, &if_.eip, &if_.esp); // check if file could be loaded sucessfully.
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
@@ -99,14 +97,14 @@ start_process (void *file_name_)
   /* Assignment 6 : Part 1 started */
   if (!success) {
     //printf("%d %d\n",thread_current()->tid, thread_current()->parent->tid);
-    thread_current()->parent->success=false;
-    sema_up(&thread_current()->parent->child_lock);
-    thread_exit();
+    thread_current()->parent->success=false; // parent's success attribute is set to false if the executable fails to load. (this gives the parent info about whether the executable can be loaded.)
+    sema_up(&thread_current()->parent->sema_child); // the parent is freed from this child.
+    thread_exit(); // the child process exits when file fails to load.
   }
   else
   {
-    thread_current()->parent->success=true;
-    sema_up(&thread_current()->parent->child_lock);
+    thread_current()->parent->success=true; // parent is passed the info that the child was able to open/load the executable.
+    sema_up(&thread_current()->parent->sema_child);
   }
   /* Assignment 6 : Part 1 ended */
 
@@ -130,7 +128,7 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid)  // the function is called by parent process, and it supplies the child tid
 {
   /* Assignment 6 : 2.4 started */
   //while(1);  
@@ -138,34 +136,36 @@ process_wait (tid_t child_tid UNUSED)
   //return -1;
 
   /* Assignment 6 : Part 1 started */
-  // printf("Wait : %s %d\n",thread_current()->name, child_tid);
-  struct list_elem *e;
+  // printf("waiting: %s %d\n",thread_current()->name, child_tid);
+  struct list_elem *iter; 
 
-  struct child *ch=NULL;
-  struct list_elem *e1=NULL;
-
-  for (e = list_begin (&thread_current()->child_proc); e != list_end (&thread_current()->child_proc);
-           e = list_next (e))
+  struct child *ch=NULL; // variable to store child process once it is located.
+  struct list_elem *e=NULL; // store the child element once it is found.
+  // this loop locates the child process in the list of child process of the caller process.
+  for (iter = list_begin (&thread_current()->child_processes); iter != list_end (&thread_current()->child_processes);
+           iter = list_next (iter))
         {
-          struct child *f = list_entry (e, struct child, elem);
+          struct child *f = list_entry (iter, struct child, elem);
           if(f->tid == child_tid)
           {
             ch = f;
-            e1 = e;
+            e = iter;
           }
         }
 
 
-  if(!ch || !e1)
+  if(!ch || !e) // if the child process is never found
     return -1;
 
-  thread_current()->waitingon = ch->tid;
+  thread_current()->waiting_on_child = ch->tid; // confirm that parent process is waiting on the child process (required by process exit)
     
-  if(!ch->used)
-    sema_down(&thread_current()->child_lock);
+  if(!ch->used) // if the used flag for the child process is still set to false
+    sema_down(&thread_current()->sema_child); 
+    /* we wait for the child process to finish exiting, i.e. we wait for it to call the 
+    sema_up on the sema_child semaphore */
 
-  int temp = ch->exit_error;
-  list_remove(e1);
+  int temp = ch->error_code; // return value of the function, i.e. the exit status
+  list_remove(e); // remove the found entry for the child process
   
   return temp;
 
@@ -181,17 +181,17 @@ process_exit (void)
 
   /* Assignment 6 : Part 1 started */
 
-  if(cur->exit_error==-100)
+  if(cur->error_code==-100) // exit with error if error_code is -100
       syscall_exit(-1);
 
-  int exit_code = cur->exit_error;
+  int exit_code = cur->error_code;
   //printf("%s: exit(%d)\n",cur->name,exit_code);
 
   /* Assignment 6 : Part 1 ended */
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
-  pd = cur->pagedir;
+  pd = cur->pagedir; 
   if (pd != NULL) 
     {
       /* Correct ordering here is crucial.  We must set
@@ -201,7 +201,7 @@ process_exit (void)
          directory before destroying the process's page
          directory, or our active page directory will be one
          that's been freed (and cleared). */
-      cur->pagedir = NULL;
+      cur->pagedir = NULL; // destroy pages
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
@@ -307,7 +307,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   int i;
 
   /* Assignment 6 : Part 1 started */
-  acquire_filesys_lock();
+  acquire_filesys_lock(); // file loading is critical section.
   /* Assignment 6 : Part 1 ended */
 
   /* Allocate and activate page directory. */
@@ -320,18 +320,18 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   /* Assignment 6 : 2.4 started */
   char * fn_cp = malloc (strlen(file_name)+1);
-  strlcpy(fn_cp, file_name, strlen(file_name)+1);
+  strlcpy(fn_cp, file_name, strlen(file_name)+1); 
   
   char * save_ptr;
   fn_cp = strtok_r(fn_cp," ",&save_ptr);
 
-  file = filesys_open (fn_cp);
+  file = filesys_open (fn_cp); // open executable.
 
   free(fn_cp);
 
   /* Assignment 6 : 2.4 ended */
 
-  if (file == NULL) 
+  if (file == NULL) // message when file load saves.
     {
       printf ("load: %s: open failed\n", file_name);
       goto done; 
@@ -411,12 +411,12 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   /* Assignment 6 : 2.4 started */
   /* Set up stack. */
-  if (!setup_stack (esp, file_name))
+  if (!setup_stack (esp, file_name)) // check if setupstack fails.
     goto done;
   /* Assignment 6 : 2.4 ended */
 
   /* Start address. */
-  *eip = (void (*) (void)) ehdr.e_entry;
+  *eip = (void (*) (void)) ehdr.e_entry; 
 
   success = true;
 
@@ -425,7 +425,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   file_close (file);
 
   /* Assignment 6 : Part 1 started */
-  release_filesys_lock();
+  release_filesys_lock(); // release file system locks
   /* Assignment 6 : Part 1 ended */
 
   return success;
@@ -552,7 +552,7 @@ setup_stack (void **esp, char *file_name)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        /* Assignment 6 : 2.4 started */
+        /* Assignment 6 : 2.4 started */ 
         *esp = PHYS_BASE;    /* Assignment 6 : 2.4 -12*/
         /* Assignment 6 : 2.4 started */
       else

@@ -148,14 +148,14 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  /* Assignment 6 : 2.4 started */
-
-  // Set eip and eax values if in kernel mode as the test that memory is valid is unsuccessful
-  if(!user) { // kernel mode
-   f->eip = (void *) f->eax;
-   f->eax = 0xffffffff;
-   return;
-  }
+   
+  /* Assignment 6 : 2.4 ended */
+   // Set eip and eax values if in kernel mode. This is to test if the memory is valid.
+   if(!user) { 
+     f->eip = (void *) f->eax; // instruction pointer is set to.
+     f->eax = 0xffffffff; // set return value register to -1.
+     return;
+   }
 
   /* Assignment 6 : 2.4 ended */
 

@@ -4,8 +4,9 @@
 /* Assignment 6 : 2.4 started */
 
 #include "threads/thread.h"
-#define ERROR -1
 
+#define ERROR -1
+#define USER_VADDR_BOTTOM ((void *) 0x08048000)
 void syscall_exit (int status);
 
 /* Assignment 6 : 2.4 ended */
