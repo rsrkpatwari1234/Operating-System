@@ -120,7 +120,7 @@ struct thread
     struct thread* parent;              // pointer to parent thread.
 
     /* Assignment 6 : Part 2 started */
-    struct file *self;
+    struct file *process_file;          // name of executable being run by the process. (CONFIRM)
     struct list files;                  // list of files needed by the process.
     int fd_count;                       // count of file descriptors.
     /* Assignment 6 : Part 2 ended */

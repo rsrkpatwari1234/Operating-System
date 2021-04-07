@@ -47,9 +47,7 @@ process_execute (const char *file_name)
   char *save_ptr; // needed by strtok_r
   char *f_name; // fname is where the name of executable is stored.
   f_name = malloc(strlen(file_name)+1);
-
   strlcpy (f_name, file_name, strlen(file_name)+1); // initialize fname as the executable_name+command_line_args
-
   f_name = strtok_r (f_name," ",&save_ptr); // extract just the executable name into f_name
   
   //printf("string : %s",fn_copy);
@@ -65,10 +63,8 @@ process_execute (const char *file_name)
 
   /* Assignment 6 : Part 1 started */
   sema_down(&thread_current()->sema_child); // acquire the semaphore for the child.
-
   if(!thread_current()->success)
     return -1;
-
   /* Assignment 6 : Part 1 ended */
 
   return tid; // sucessful execution returns tid of created process
@@ -92,11 +88,6 @@ start_process (void *file_name_)
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-
-  /* Assignment 6 : 2.4 started : not used in Part 1*/
-  /*if (!success) 
-    thread_exit ();*/
-  /* Assignment 6 : 2.4 ended */
 
   /* Assignment 6 : Part 1 started */
   if (!success) {
@@ -134,11 +125,6 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid)  // the function is called by parent process, and it supplies the child tid
 {
-  /* Assignment 6 : 2.4 started */
-  //while(1);  
-  /* Assignment 6 : 2.4 ended */
-  //return -1;
-
   /* Assignment 6 : Part 1 started */
   // printf("waiting: %s %d\n",thread_current()->name, child_tid);
   struct list_elem *iter; 
@@ -184,19 +170,16 @@ process_exit (void)
   uint32_t *pd;
 
   /* Assignment 6 : Part 1 started */
-
   if(cur->error_code==-100) // exit with error if error_code is -100
-      syscall_exit(-1);
-
+    syscall_exit(-1);
   int exit_code = cur->error_code;
   //printf("%s: exit(%d)\n",cur->name,exit_code);
-
   /* Assignment 6 : Part 1 ended */
 
   /* Assignment 6 : Part 2 started */
   acquire_filesys_lock();
-  file_close(thread_current()->self);
-  close_all_files(&thread_current()->files);
+  file_close(thread_current()->process_file); // close the executable file of currently running process.
+  close_files(&thread_current()->files); // close all files stored in the list of files opened by the process. 
   release_filesys_lock();
   /* Assignment 6 : Part 2 ended */
 
@@ -337,9 +320,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   fn_cp = strtok_r(fn_cp," ",&save_ptr);
 
   file = filesys_open (fn_cp); // open executable.
-
   free(fn_cp);
-
   /* Assignment 6 : 2.4 ended */
 
   if (file == NULL) // message when file load saves.
@@ -433,8 +414,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   /* Assignment 6 : Part 2 started */
   file_deny_write(file);
-
-  thread_current()->self = file;
+  thread_current()->process_file = file;
   /* Assignment 6 : Part 2 ended */
 
  done:
@@ -570,45 +550,42 @@ setup_stack (void **esp, char *file_name)
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
         /* Assignment 6 : 2.4 started */ 
-        *esp = PHYS_BASE;    /* Assignment 6 : 2.4 -12*/
+        *esp = PHYS_BASE;
         /* Assignment 6 : 2.4 started */
       else
         palloc_free_page (kpage);
     }
 
   /* Assignment 6 : Part 1 started */
-  char *token, *save_ptr;
-  int argc = 0,i;
+  char *token, *save_ptr; // token is used to store the current token. save_ptr is used to store current location of the tokenizer.
+  int argc = 0,i; // argc is used to store the argument count. i is an iterator variable.
 
   char * copy = malloc(strlen(file_name)+1);
   strlcpy (copy, file_name, strlen(file_name)+1);
 
-
-  for (token = strtok_r (copy, " ", &save_ptr); token != NULL;
-    token = strtok_r (NULL, " ", &save_ptr))
+  // get the count of arguments.
+  for (token = strtok_r (copy, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr))
     argc++;
-
-
+  // store the pointers to the arguments in argv, which is an array of ints.
   int *argv = calloc(argc,sizeof(int));
-
+  // store the arguments (char*) on the stack and their addresses in argv.
   for (token = strtok_r (file_name, " ", &save_ptr),i=0; token != NULL;
     token = strtok_r (NULL, " ", &save_ptr),i++)
     {
       *esp -= strlen(token) + 1;
-      memcpy(*esp,token,strlen(token) + 1);
-
+      memcpy(*esp,token,strlen(token) + 1); // storing argument on the stack.
+      // storing the address to the argument in a vector of integers.
       argv[i]=*esp;
     }
-
+  // pad zeroes to align the word level access, by making sure that the stack pointer is a multiple of 4.
   while((int)*esp%4!=0)
   {
-    *esp-=sizeof(char);
+    *esp-=sizeof(char); // sizeof(char) or 1 byte.
     char x = 0;
-    memcpy(*esp,&x,sizeof(char));
+    memcpy(*esp,&x,sizeof(char)); // add char 0 as padding.
   }
 
   int zero = 0;
-
   *esp-=sizeof(int);
   memcpy(*esp,&zero,sizeof(int));
 
@@ -621,18 +598,17 @@ setup_stack (void **esp, char *file_name)
   int pt = *esp;
   *esp-=sizeof(int);
   memcpy(*esp,&pt,sizeof(int));
-
+  // add argc to the stack.
   *esp-=sizeof(int);
   memcpy(*esp,&argc,sizeof(int));
 
   *esp-=sizeof(int);
   memcpy(*esp,&zero,sizeof(int));
-
+  // free the copy and argv variables.
   free(copy);
   free(argv);
-
   /* Assignment 6 : Part 1 ended */
-
+  // indicate successful compeletion.
   return success;
 }
 

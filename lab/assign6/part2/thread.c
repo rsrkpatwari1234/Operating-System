@@ -376,13 +376,13 @@ thread_exit (void)
   process_exit ();
 #endif
 
-  /* Assignment 6 : Part 1 started */
+  /* Assignment 6 : Part 2 started */
   // free memory occupied by the child processes, when the thread exits after finishing execution.
   while(!list_empty(&thread_current()->child_processes)){
-    struct proc_file *f = list_entry (list_pop_front(&thread_current()->child_processes), struct child, elem);
+    struct process_file *f = list_entry (list_pop_front(&thread_current()->child_processes), struct child, elem);
     free(f);
   }
-  /* Assignment 6 : Part 1 ended */
+  /* Assignment 6 : Part 2 ended */
 
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
@@ -707,7 +707,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->error_code = -100;
   sema_init(&t->sema_child,0);
   t->waiting_on_child=0;
-  t->self=NULL;
+  t->process_file=NULL;
 
   /* Assignment 6 : Part 1 : Part 2 ended */
 

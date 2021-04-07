@@ -26,11 +26,11 @@ void* check_addr(const void*);
 
 /* Assignment 6 : Part 2 started */
 
-struct proc_file* list_search(struct list* files, int fd);
+struct process_file* get_file(struct list* files, int fd);
 
-struct proc_file {
-	struct file* ptr;
+struct process_file {
 	int fd;
+	struct file* file_ptr;
 	struct list_elem elem;
 };
 
@@ -77,12 +77,6 @@ syscall_handler (struct intr_frame *f UNUSED)
 		check_addr(p+1);
 		syscall_exit(*(p+1));
 		break;
-    
-    /*case SYS_WRITE:
-		check_addr(p+7);
-		check_addr(p+6);
-		f->eax = syscall_write(*(p+5), *(p+6), *(p+7));
-		break;*/
 
     case SYS_EXEC:
 		check_addr(p+1);
@@ -127,8 +121,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 			f->eax = -1;
 		else
 		{
-			struct proc_file *pfile = malloc(sizeof(*pfile));
-			pfile->ptr = fptr;
+			struct process_file *pfile = malloc(sizeof(*pfile));
+			pfile->file_ptr = fptr;
 			pfile->fd = thread_current()->fd_count;
 			thread_current()->fd_count++;
 			list_push_back (&thread_current()->files, &pfile->elem);
@@ -139,7 +133,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 	case SYS_FILESIZE:
 		check_addr(p+1);
 		acquire_filesys_lock();
-		f->eax = file_length (list_search(&thread_current()->files, *(p+1))->ptr);
+		f->eax = file_length (get_file(&thread_current()->files, *(p+1))->file_ptr);
 		release_filesys_lock();
 		break;
 
@@ -156,13 +150,13 @@ syscall_handler (struct intr_frame *f UNUSED)
 		}
 		else
 		{
-			struct proc_file* fptr = list_search(&thread_current()->files, *(p+5));
+			struct process_file* fptr = get_file(&thread_current()->files, *(p+5));
 			if(fptr==NULL)
 				f->eax=-1;
 			else
 			{
 				acquire_filesys_lock();
-				f->eax = file_read (fptr->ptr, *(p+6), *(p+7));
+				f->eax = file_read (fptr->file_ptr, *(p+6), *(p+7));
 				release_filesys_lock();
 			}
 		}
@@ -177,27 +171,28 @@ syscall_handler (struct intr_frame *f UNUSED)
 	case SYS_SEEK:
 		check_addr(p+5);
 		acquire_filesys_lock();
-		file_seek(list_search(&thread_current()->files, *(p+4))->ptr,*(p+5));
+		file_seek(get_file(&thread_current()->files, *(p+4))->file_ptr,*(p+5));
 		release_filesys_lock();
 		break;
 
 	case SYS_TELL:
 		check_addr(p+1);
 		acquire_filesys_lock();
-		f->eax = file_tell(list_search(&thread_current()->files, *(p+1))->ptr);
+		f->eax = file_tell(get_file(&thread_current()->files, *(p+1))->file_ptr);
 		release_filesys_lock();
 		break;
 
 	case SYS_CLOSE:
 		check_addr(p+1);
 		acquire_filesys_lock();
-		close_file(&thread_current()->files,*(p+1));
+		struct list* files = &thread_current()->files;
+		int fd = *(p+1);
+		close_file(files, fd);
 		release_filesys_lock();
 		break;
 
     default:
     	printf("Default %d\n",*p);
-      	//printf ("Not defined system call!\n");
       	break;
   }
 
@@ -254,16 +249,16 @@ int syscall_write (int filedes, int buffer, int byte_size)
       putbuf(buffer, byte_size);
       return byte_size;
     }
-    else // currently we have only implemented writing to console, we will extend this syscall for future assignments.
+    else
     {
-      	struct proc_file* fptr = list_search(&thread_current()->files, filedes);
+      	struct process_file* fptr = get_file(&thread_current()->files, filedes);
 		if(fptr==NULL)
 			return ERROR;
 		else
 		{	
 			int status;
 			acquire_filesys_lock();
-			status = file_write (fptr->ptr, buffer, byte_size);
+			status = file_write (fptr->file_ptr, buffer, byte_size);
 			release_filesys_lock();
 			return status;
 		}
@@ -285,7 +280,7 @@ int syscall_exec(char *file_name) // inside ths we ensure that the executable ex
   if(f == NULL) // in case file open fails, e.g. file doesn't exist.
   {
     release_filesys_lock(); // release lock.
-    syscall_exit(ERROR); // exit with error in case file can't be loaded.
+    syscall_exit(0); // exit with error in case file can't be loaded. (CONFIRM)
   }
   else
   {
@@ -322,45 +317,43 @@ int syscall_wait(tid_t child_tid)
 {
 	return process_wait(child_tid);
 }
-
-struct proc_file* list_search(struct list* files, int fd)
+/* Get the reference to the process_file struct type having a particular fd from a list of files */
+struct process_file* get_file(struct list* files, int fd)
 {
 	struct list_elem *e;
-	for (e = list_begin (files); e != list_end (files);
-	   e = list_next (e))
+	for (e = list_begin (files); e != list_end (files); e = list_next (e))
 	{
-		struct proc_file *f = list_entry (e, struct proc_file, elem);
+		struct process_file *f = list_entry (e, struct process_file, elem);
 		if(f->fd == fd)
 			return f;
 	}
-   return NULL;
+   return NULL; // return NULL if file not found.
 }
 
 void close_file(struct list* files, int fd)
 {
 	struct list_elem *e;
-	struct proc_file *f;
-	for (e = list_begin (files); e != list_end (files);
-	e = list_next (e))
+	struct process_file *f;
+	for (e = list_begin (files); e != list_end (files); e = list_next (e))
 	{
-		f = list_entry (e, struct proc_file, elem);
+		f = list_entry (e, struct process_file, elem);
 		if(f->fd == fd)
 		{
-			file_close(f->ptr);
+			file_close(f->file_ptr);
 			list_remove(e);
 		}
 	}
     free(f);
 }
 
-void close_all_files(struct list* files)
+void close_files(struct list* files)
 {
 	struct list_elem *e;
 	while(!list_empty(files))
 	{
 		e = list_pop_front(files);
-		struct proc_file *f = list_entry (e, struct proc_file, elem);
-      	file_close(f->ptr);
+		struct process_file *f = list_entry (e, struct process_file, elem);
+      	file_close(f->file_ptr);
       	list_remove(e);
       	free(f);
 	} 
