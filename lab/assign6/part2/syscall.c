@@ -64,11 +64,11 @@ syscall_handler (struct intr_frame *f UNUSED)
 
   /* Assignment 6 : 2.4 : Part 1 : Part 2 started */
 
-  int* p = f->esp; // pointer to system call code
-  check_addr(p); // validate the address of the pointer to the system call
-  int system_call = *p; // integer code for matching 
+  int* p = f->esp; 					// pointer to system call code
+  check_addr(p); 					// validate the address of the pointer to the system call
+  int system_call = *p; 			// integer code for matching 
   //printf("\nsyscall : %d\n",system_call);
-  // exit, write and wait implemented
+
   switch (system_call)
   { // return value is stored in the eax register of the interrupt frame
     /* each case first validates the stack pointer value and then calls the 
@@ -87,47 +87,24 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_WAIT:
 		check_addr(p+1);
 		f->eax = syscall_wait(*(p+1));
-		//f->eax = process_wait(*(p+1));
 		break;
 
     case SYS_CREATE:
 		check_addr(p+5);
 		check_addr(*(p+4));
-		acquire_filesys_lock();
-		f->eax = filesys_create(*(p+4),*(p+5));
-		release_filesys_lock();
+		f->eax = syscall_create(*(p+4),*(p+5));
 		break;
 
 	case SYS_REMOVE:
 		check_addr(p+1);
 		check_addr(*(p+1));
-		acquire_filesys_lock();
-		/*if(filesys_remove(*(p+1))==NULL)
-			f->eax = false;
-		else
-			f->eax = true;*/
-		f->eax =  filesys_remove(*(p+1));
-		release_filesys_lock();
+		f->eax = syscall_remove(*(p+1));
 		break;
 
 	case SYS_OPEN:
 		check_addr(p+1);
 		check_addr(*(p+1));
-
-		acquire_filesys_lock();
-		struct file* fptr = filesys_open (*(p+1));
-		release_filesys_lock();
-		if(fptr==NULL)
-			f->eax = -1;
-		else
-		{
-			struct process_file *pfile = malloc(sizeof(*pfile));
-			pfile->file_ptr = fptr;
-			pfile->fd = thread_current()->fd_count;
-			thread_current()->fd_count++;
-			list_push_back (&thread_current()->files, &pfile->elem);
-			f->eax = pfile->fd;
-		}
+		f->eax = syscall_open(*(p+1));
 		break;
 
 	case SYS_FILESIZE:
@@ -140,26 +117,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 	case SYS_READ:
 		check_addr(p+7);
 		check_addr(*(p+6));
-		if(*(p+5)==0)
-		{
-			int i;
-			uint8_t* buffer = *(p+6);
-			for(i=0;i<*(p+7);i++)
-				buffer[i] = input_getc();
-			f->eax = *(p+7);
-		}
-		else
-		{
-			struct process_file* fptr = get_file(&thread_current()->files, *(p+5));
-			if(fptr==NULL)
-				f->eax=-1;
-			else
-			{
-				acquire_filesys_lock();
-				f->eax = file_read (fptr->file_ptr, *(p+6), *(p+7));
-				release_filesys_lock();
-			}
-		}
+		f->eax = syscall_read(*(p+5), *(p+6), *(p+7));
 		break;
 
 	case SYS_WRITE:
@@ -184,11 +142,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 	case SYS_CLOSE:
 		check_addr(p+1);
-		acquire_filesys_lock();
-		struct list* files = &thread_current()->files;
-		int fd = *(p+1);
-		close_file(files, fd);
-		release_filesys_lock();
+		syscall_close(*(p+1));
 		break;
 
     default:
@@ -240,11 +194,11 @@ void syscall_exit(int status)
 /* syscall_write */
 int syscall_write (int filedes, int buffer, int byte_size)
 {
-    if (byte_size <= 0) // don't do anything for non-positive byte-size.
+    if (byte_size <= 0) 		// don't do anything for non-positive byte-size.
     {
       return byte_size;
     }
-    if(filedes == STD_OUTPUT) // check if the file descriptor is for STD_OUTPUT i.e. the console
+    if(filedes == STD_OUTPUT) 	// check if the file descriptor is for STD_OUTPUT i.e. the console
     {
       putbuf(buffer, byte_size);
       return byte_size;
@@ -266,27 +220,27 @@ int syscall_write (int filedes, int buffer, int byte_size)
     return ERROR;
 }
 
-int syscall_exec(char *file_name) // inside ths we ensure that the executable exists and can be opened even before calling process_execute.
+int syscall_exec(char *file_name) 	// inside ths we ensure that the executable exists and can be opened even before calling process_execute.
 {
-  acquire_filesys_lock(); // because filesys_open is a critical step.
-  char * fn_cp = malloc (strlen(file_name)+1); // save a copy of the filename, which we use for parsing the true filename/executable name and command line args.
+  acquire_filesys_lock(); 							// because filesys_open is a critical step.
+  char * fn_cp = malloc (strlen(file_name)+1); 		// save a copy of the filename, which we use for parsing the true filename/executable name and command line args.
   strlcpy(fn_cp, file_name, strlen(file_name)+1);
   
-  char * save_ptr; // required by strtok_r to keep track of current location.
-  fn_cp = strtok_r(fn_cp," ",&save_ptr); // get name of the executable.
+  char * save_ptr; 									// required by strtok_r to keep track of current location.
+  fn_cp = strtok_r(fn_cp," ",&save_ptr); 			// get name of the executable.
 
-  struct file* f = filesys_open (fn_cp); // open executable file.
+  struct file* f = filesys_open (fn_cp); 			// open executable file.
 
-  if(f == NULL) // in case file open fails, e.g. file doesn't exist.
+  if(f == NULL)										// in case file open fails, e.g. file doesn't exist.
   {
-    release_filesys_lock(); // release lock.
-    syscall_exit(0); // exit with error in case file can't be loaded. (CONFIRM)
+    release_filesys_lock(); 						// release lock.
+    return ERROR;           						// exit with error in case file can't be loaded.
   }
   else
   {
     file_close(f);
-    release_filesys_lock(); // release the file system.
-    return process_execute(file_name); // execute the file process (we now know that the executable can be loaded). 
+    release_filesys_lock(); 				// release the file system.
+    return process_execute(file_name); 		// execute the file process (we now know that the executable can be loaded). 
   }
 }
 
@@ -317,6 +271,74 @@ int syscall_wait(tid_t child_tid)
 {
 	return process_wait(child_tid);
 }
+
+int syscall_create(const char *file, unsigned initial_size)
+{
+	acquire_filesys_lock();
+	int status = filesys_create(file, initial_size);
+	release_filesys_lock();
+	return status;
+}
+
+int syscall_open(const char *file)
+{
+	acquire_filesys_lock();
+	struct file* fptr = filesys_open (file);
+	release_filesys_lock();
+
+	if(fptr!=NULL)
+	{
+		struct process_file *pfile = malloc(sizeof(*pfile));
+		pfile->file_ptr = fptr;
+		pfile->fd = thread_current()->fd_count;
+		thread_current()->fd_count++;
+		list_push_back (&thread_current()->files, &pfile->elem);
+		return pfile->fd;
+	}
+	return -1;
+}
+
+int syscall_read (int fd, uint8_t *buffer, unsigned size)
+{
+	if(fd == 0)
+	{
+		for(int i = 0;i < size;i++)
+			buffer[i] = input_getc();
+		return size;
+	}
+	else
+	{
+		struct process_file* fptr = get_file(&thread_current()->files, fd);
+		int val;
+		if(fptr==NULL)
+			return -1;
+		else
+		{
+			acquire_filesys_lock();
+			val = file_read (fptr->file_ptr, buffer, size);
+			release_filesys_lock();
+		}
+		return val;
+	}
+	return -1;
+}
+
+void syscall_close(int fd)
+{
+	acquire_filesys_lock();
+	struct list* files = &thread_current()->files;
+	close_file(files, fd);
+	release_filesys_lock();
+}
+
+int syscall_remove(const char *file)
+{
+	acquire_filesys_lock();
+	int status =  filesys_remove(file);
+	release_filesys_lock();
+	return status;
+}
+
 /* Get the reference to the process_file struct type having a particular fd from a list of files */
 struct process_file* get_file(struct list* files, int fd)
 {

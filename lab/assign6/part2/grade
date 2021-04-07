@@ -1,4 +1,5 @@
-TOTAL TESTING SCORE: 98.6%
+TOTAL TESTING SCORE: 100.0%
+ALL TESTED PASSED -- PERFECT SCORE
 
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
@@ -7,11 +8,11 @@ SUMMARY BY TEST SET
 Test Set                                      Pts Max  % Ttl  % Max
 --------------------------------------------- --- --- ------ ------
 tests/userprog/Rubric.functionality           108/108  35.0%/ 35.0%
-tests/userprog/Rubric.robustness               83/ 88  23.6%/ 25.0%
+tests/userprog/Rubric.robustness               88/ 88  25.0%/ 25.0%
 tests/userprog/no-vm/Rubric                     1/  1  10.0%/ 10.0%
 tests/filesys/base/Rubric                      30/ 30  30.0%/ 30.0%
 --------------------------------------------- --- --- ------ ------
-Total                                                  98.6%/100.0%
+Total                                                 100.0%/100.0%
 
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
@@ -111,7 +112,7 @@ Robustness of system calls (tests/userprog/Rubric.robustness):
 	     5/ 5 tests/userprog/sc-boundary-2
 
 	- Test robustness of "exec" and "wait" system calls.
-	  ** 0/ 5 tests/userprog/exec-missing
+	     5/ 5 tests/userprog/exec-missing
 	     5/ 5 tests/userprog/wait-bad-pid
 	     5/ 5 tests/userprog/wait-killed
 
@@ -124,8 +125,8 @@ Robustness of system calls (tests/userprog/Rubric.robustness):
 	     1/ 1 tests/userprog/bad-jump2
 
 	- Section summary.
-	     33/ 34 tests passed
-	     83/ 88 points subtotal
+	     34/ 34 tests passed
+	     88/ 88 points subtotal
 
 Functionality of features that VM might break (tests/userprog/no-vm/Rubric):
 
@@ -159,99 +160,3 @@ Functionality of base file system (tests/filesys/base/Rubric):
 	     13/ 13 tests passed
 	     30/ 30 points subtotal
 
-
-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-
-DETAILS OF tests/userprog/exec-missing FAILURE:
-
-Test output failed to match any acceptable form.
-
-Acceptable output:
-  (exec-missing) begin
-  load: no-such-file: open failed
-  no-such-file: exit(-1)
-  (exec-missing) exec("no-such-file"): -1
-  (exec-missing) end
-  exec-missing: exit(0)
-Differences in `diff -u' format:
-  (exec-missing) begin
-- load: no-such-file: open failed
-- no-such-file: exit(-1)
-- (exec-missing) exec("no-such-file"): -1
-- (exec-missing) end
-- exec-missing: exit(0)
-+ exec-missing: exit(-1)
-Acceptable output:
-  (exec-missing) begin
-  load: no-such-file: open failed
-  (exec-missing) exec("no-such-file"): -1
-  (exec-missing) end
-  exec-missing: exit(0)
-Differences in `diff -u' format:
-  (exec-missing) begin
-- load: no-such-file: open failed
-- (exec-missing) exec("no-such-file"): -1
-- (exec-missing) end
-- exec-missing: exit(0)
-+ exec-missing: exit(-1)
-Acceptable output:
-  (exec-missing) begin
-  load: no-such-file: open failed
-  (exec-missing) exec("no-such-file"): -1
-  no-such-file: exit(-1)
-  (exec-missing) end
-  exec-missing: exit(0)
-Differences in `diff -u' format:
-  (exec-missing) begin
-- load: no-such-file: open failed
-- (exec-missing) exec("no-such-file"): -1
-- no-such-file: exit(-1)
-- (exec-missing) end
-- exec-missing: exit(0)
-+ exec-missing: exit(-1)
-Acceptable output:
-  (exec-missing) begin
-  (exec-missing) exec("no-such-file"): -1
-  (exec-missing) end
-  exec-missing: exit(0)
-Differences in `diff -u' format:
-  (exec-missing) begin
-- (exec-missing) exec("no-such-file"): -1
-- (exec-missing) end
-- exec-missing: exit(0)
-+ exec-missing: exit(-1)
-
-OUTPUT FROM tests/userprog/exec-missing:
-
-Copying tests/userprog/exec-missing to scratch partition...
-qemu -hda /tmp/Y0hvm1x45X.dsk -m 4 -net none -nographic -monitor null
-PiLo hda1
-Loading............
-Kernel command line: -q -f extract run exec-missing
-Pintos booting with 3,968 kB RAM...
-367 pages available in kernel pool.
-367 pages available in user pool.
-Calibrating timer...  523,468,800 loops/s.
-hda: 5,040 sectors (2 MB), model "QM00001", serial "QEMU HARDDISK"
-hda1: 194 sectors (97 kB), Pintos OS kernel (20)
-hda2: 4,096 sectors (2 MB), Pintos file system (21)
-hda3: 95 sectors (47 kB), Pintos scratch (22)
-filesys: using hda2
-scratch: using hda3
-Formatting file system...done.
-Boot complete.
-Extracting ustar archive from scratch device into file system...
-Putting 'exec-missing' into the file system...
-Erasing ustar archive...
-Executing 'exec-missing':
-(exec-missing) begin
-exec-missing: exit(-1)
-Execution of 'exec-missing' complete.
-Timer: 85 ticks
-Thread: 34 idle ticks, 50 kernel ticks, 1 user ticks
-hda2 (filesys): 82 reads, 194 writes
-hda3 (scratch): 94 reads, 2 writes
-Console: 887 characters output
-Keyboard: 0 keys pressed
-Exception: 0 page faults
-Powering off...
