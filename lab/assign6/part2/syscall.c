@@ -26,12 +26,12 @@ void* check_addr(const void*);
 
 /* Assignment 6 : Part 2 started */
 
-struct process_file* get_file(struct list* files, int fd);
+struct opened_file* get_file(struct list* files, int fd); // get file from a list of files using given file descriptor.
 
-struct process_file {
-	int fd;
-	struct file* file_ptr;
-	struct list_elem elem;
+struct opened_file { // to store details about files opened by a process.
+	int fd; // file descriptor.
+	struct file* file_ptr; // poiner to the file struct.
+	struct list_elem elem; // list element for storing pointer to next and previous element of the list of files.
 };
 
 /* Assignment 6 : Part 2 ended */
@@ -75,24 +75,25 @@ syscall_handler (struct intr_frame *f UNUSED)
     relevant system call. The eax value is set, if the syscall returns a value */
     case SYS_EXIT:
 		check_addr(p+1);
-		syscall_exit(*(p+1));
+		syscall_exit(*(p+1)); // call syscall exit, pass the first argument which is the status.
 		break;
 
     case SYS_EXEC:
 		check_addr(p+1);
 		check_addr(*(p+1));
-		f->eax = syscall_exec(*(p+1));
+		f->eax = syscall_exec(*(p+1)); // call syscall exit, pass the first argument on the stack, which is the filename.
 		break;
 
     case SYS_WAIT:
 		check_addr(p+1);
-		f->eax = syscall_wait(*(p+1));
+		f->eax = syscall_wait(*(p+1)); // call syscall wait, pass the first argument on the stack, which is the filename.
 		break;
 
     case SYS_CREATE:
 		check_addr(p+5);
 		check_addr(*(p+4));
-		f->eax = syscall_create(*(p+4),*(p+5));
+		f->eax = syscall_create(*(p+4),*(p+5)); /* call syscall create, pass the value stored at 
+		fourth and fifth position on the stack, which are the filename and the initial size of the file */
 		break;
 
 	case SYS_REMOVE:
@@ -141,7 +142,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 		break;
 
 	case SYS_CLOSE:
-		check_addr(p+1);
+		check_addr(p+1); 
 		syscall_close(*(p+1));
 		break;
 
@@ -205,7 +206,7 @@ int syscall_write (int filedes, int buffer, int byte_size)
     }
     else
     {
-      	struct process_file* fptr = get_file(&thread_current()->files, filedes);
+      	struct opened_file* fptr = get_file(&thread_current()->files, filedes);
 		if(fptr==NULL)
 			return ERROR;
 		else
@@ -266,115 +267,119 @@ void* check_addr(const void *vaddr)
 /* Assignment 6 : 2.4 ended */
 
 /* Assignment 6 : Part 2 started */
-
+/* we use process_wait to implement this syscall */
 int syscall_wait(tid_t child_tid)
 {
 	return process_wait(child_tid);
 }
 
+/* creates a file named "file", with the size "initial_size" */
 int syscall_create(const char *file, unsigned initial_size)
 {
-	acquire_filesys_lock();
-	int status = filesys_create(file, initial_size);
-	release_filesys_lock();
+	acquire_filesys_lock(); // acquire lock for critical section. 
+	int status = filesys_create(file, initial_size); // create file and return status of creation.
+	release_filesys_lock(); // release lock for critical section.
 	return status;
 }
-
+/* open file using filename */
 int syscall_open(const char *file)
 {
-	acquire_filesys_lock();
-	struct file* fptr = filesys_open (file);
+	acquire_filesys_lock(); // make sure that file opening is not interrupted.
+	struct file* fptr = filesys_open (file); // open file. (a pointer to a file struct is returned)
 	release_filesys_lock();
 
-	if(fptr!=NULL)
-	{
-		struct process_file *pfile = malloc(sizeof(*pfile));
+	if(fptr!=NULL) // make sure that the file creation was succesful.
+	{	/* an opened_file struct is used to store the following info:
+		   pointer of the file struct returned by filesys_open.
+		   file descriptor.
+		   elem struct, which has the forward and backward pointers for maintaing the list of files. */
+		struct opened_file *pfile = malloc(sizeof(*pfile)); // create a process file struct.
 		pfile->file_ptr = fptr;
 		pfile->fd = thread_current()->fd_count;
-		thread_current()->fd_count++;
-		list_push_back (&thread_current()->files, &pfile->elem);
-		return pfile->fd;
+		thread_current()->fd_count++; // fd_count is incremented as the file descriptors of the succesive files are like 0,1,2 ..
+		list_push_back (&thread_current()->files, &pfile->elem); // add file to the list of files.
+		return pfile->fd; // return file descriptor.
 	}
-	return -1;
+	return -1; // -1 indicates failure in opening of the file.
 }
-
+/* read from a file descriptor and store in the buffer, upto size number of bytes. */
 int syscall_read (int fd, uint8_t *buffer, unsigned size)
 {
-	if(fd == 0)
+	if(fd == 0) // stdin case.
 	{
 		for(int i = 0;i < size;i++)
 			buffer[i] = input_getc();
 		return size;
 	}
-	else
+	else // read from a file.
 	{
-		struct process_file* fptr = get_file(&thread_current()->files, fd);
-		int val;
-		if(fptr==NULL)
+		struct opened_file* fptr = get_file(&thread_current()->files, fd); // get file from list of files opened by the current process.
+		int val; // val is the number of bytes actually read.
+		if(fptr==NULL) // return -1 if file couldn't be opened. 
 			return -1;
 		else
 		{
-			acquire_filesys_lock();
-			val = file_read (fptr->file_ptr, buffer, size);
+			acquire_filesys_lock(); // critical section.
+			val = file_read (fptr->file_ptr, buffer, size); // returns number of bytes actually read.
 			release_filesys_lock();
 		}
-		return val;
+		return val; // return the number of bytes actually read (maybe be less than size).
 	}
-	return -1;
 }
-
+/* close file having a particular fd. */
 void syscall_close(int fd)
 {
 	acquire_filesys_lock();
 	struct list* files = &thread_current()->files;
-	close_file(files, fd);
+	close_file(files, fd); // close file with a particular fd, from the list of files.
 	release_filesys_lock();
 }
-
+/* syscall to remove/delete a file. */
 int syscall_remove(const char *file)
 {
 	acquire_filesys_lock();
-	int status =  filesys_remove(file);
+	int status =  filesys_remove(file); // deletes file if it exists, false is returned if it fails.
 	release_filesys_lock();
 	return status;
 }
 
-/* Get the reference to the process_file struct type having a particular fd from a list of files */
-struct process_file* get_file(struct list* files, int fd)
+/* Get the reference to the opened_file struct type having a particular fd from a list of files. */
+struct opened_file* get_file(struct list* files, int fd)
 {
 	struct list_elem *e;
 	for (e = list_begin (files); e != list_end (files); e = list_next (e))
 	{
-		struct process_file *f = list_entry (e, struct process_file, elem);
+		struct opened_file *f = list_entry (e, struct opened_file, elem);
 		if(f->fd == fd)
 			return f;
 	}
    return NULL; // return NULL if file not found.
 }
-
+/* to close a file according to the file descriptor. */
 void close_file(struct list* files, int fd)
 {
 	struct list_elem *e;
-	struct process_file *f;
+	struct opened_file *f;
 	for (e = list_begin (files); e != list_end (files); e = list_next (e))
 	{
-		f = list_entry (e, struct process_file, elem);
+		f = list_entry (e, struct opened_file, elem);
 		if(f->fd == fd)
 		{
 			file_close(f->file_ptr);
 			list_remove(e);
+			break;
 		}
 	}
     free(f);
 }
-
-void close_files(struct list* files)
+/* close all files opened by a process.  */
+void close_files(struct list* files) // close all files belonging to a process.
 {
-	struct list_elem *e;
-	while(!list_empty(files))
+	struct list_elem *e; 
+	while(!list_empty(files)) 
 	{
 		e = list_pop_front(files);
-		struct process_file *f = list_entry (e, struct process_file, elem);
+		struct opened_file *f = list_entry (e, struct opened_file, elem);
       	file_close(f->file_ptr);
       	list_remove(e);
       	free(f);
