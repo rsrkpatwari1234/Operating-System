@@ -30,7 +30,7 @@ struct opened_file* get_file(struct list* files, int fd); // get file from a lis
 
 struct opened_file { // to store details about files opened by a process.
 	int fd; // file descriptor.
-	struct file* file_ptr; // poiner to the file struct.
+	struct file* file_ptr; // pointer to the file struct.
 	struct list_elem elem; // list element for storing pointer to next and previous element of the list of files.
 };
 
@@ -54,7 +54,7 @@ syscall_init (void)
  * out base on the command line.
  */
 static void
-syscall_handler (struct intr_frame *f UNUSED) 
+syscall_handler (struct intr_frame *f) 
 {
 
   /* Assignment 6 : 2.4 removal started */
@@ -73,7 +73,10 @@ syscall_handler (struct intr_frame *f UNUSED)
   { // return value is stored in the eax register of the interrupt frame
     /* each case first validates the stack pointer value and then calls the 
     relevant system call. The eax value is set, if the syscall returns a value */
-    case SYS_EXIT:
+    
+	// we surround all filesys function calls with acquire_filesys_lock and release_filesys_lock calls to make sure that no critical file operations are interrupted.
+	
+	case SYS_EXIT:
 		check_addr(p+1);
 		syscall_exit(*(p+1)); // call syscall exit, pass the first argument which is the status.
 		break;
@@ -94,56 +97,50 @@ syscall_handler (struct intr_frame *f UNUSED)
 		check_addr(*(p+4));
 		f->eax = syscall_create(*(p+4),*(p+5)); /* call syscall create, pass the value stored at 
 		fourth and fifth position on the stack, which are the filename and the initial size of the file */
-		break;
+		break; // set the return value to the status returned by the filesys_create function.
 
 	case SYS_REMOVE:
 		check_addr(p+1);
 		check_addr(*(p+1));
-		f->eax = syscall_remove(*(p+1));
-		break;
+		f->eax = syscall_remove(*(p+1)); // call syscall remove to delete a file.
+		break; // set the return value to status returned by the filesys_remove function.
 
 	case SYS_OPEN:
 		check_addr(p+1);
 		check_addr(*(p+1));
-		f->eax = syscall_open(*(p+1));
-		break;
+		f->eax = syscall_open(*(p+1)); // call syscall open to open a file and update the necessary info of the thread struct such as the fd_count and the list of opened_file structs.
+		break; // set the return value to the status returned by the filesys_create function.
 
 	case SYS_FILESIZE:
 		check_addr(p+1);
-		acquire_filesys_lock();
-		f->eax = file_length (get_file(&thread_current()->files, *(p+1))->file_ptr);
-		release_filesys_lock();
-		break;
+		f->eax = syscall_filesize(&thread_current()->files, *(p+1)); // call syscall_filesize to get size of a file in BYTES.
+		break; // set the return value to the size of file returned by file_length.
 
 	case SYS_READ:
 		check_addr(p+7);
 		check_addr(*(p+6));
-		f->eax = syscall_read(*(p+5), *(p+6), *(p+7));
-		break;
+		f->eax = syscall_read(*(p+5), *(p+6), *(p+7)); // call syscall read to read at most size no. of bytes into the buffer.
+		break; // set the return value to the actual number of bytes read.
 
 	case SYS_WRITE:
 		check_addr(p+7);
 		check_addr(*(p+6));
-		f->eax = syscall_write(*(p+5), *(p+6), *(p+7));
-		break;
+		f->eax = syscall_write(*(p+5), *(p+6), *(p+7)); // call syscall write to write at most size no. of bytes into the buffer.
+		break; // set the return value to the actual number of bytes read.
 
 	case SYS_SEEK:
 		check_addr(p+5);
-		acquire_filesys_lock();
-		file_seek(get_file(&thread_current()->files, *(p+4))->file_ptr,*(p+5));
-		release_filesys_lock();
+		syscall_seek(&thread_current()->files, *(p+4), *(p+5));  // call syscall seek to move offset of file pointer to a new position.
 		break;
 
-	case SYS_TELL:
+	case SYS_TELL: 
 		check_addr(p+1);
-		acquire_filesys_lock();
-		f->eax = file_tell(get_file(&thread_current()->files, *(p+1))->file_ptr);
-		release_filesys_lock();
-		break;
+		f->eax = syscall_tell(&thread_current()->files, *(p+1)); // call syscall tell to get BYTE offset of current position of file pointer from start of file.
+		break; // set the return value to the current BYTE offset from the start of the file.
 
 	case SYS_CLOSE:
 		check_addr(p+1); 
-		syscall_close(*(p+1));
+		syscall_close(&thread_current()->files, *(p+1)); // call syscall close to close a file having a particular fd from the list of files belonging to the process.
 		break;
 
     default:
@@ -305,12 +302,14 @@ int syscall_open(const char *file)
 /* read from a file descriptor and store in the buffer, upto size number of bytes. */
 int syscall_read (int fd, uint8_t *buffer, unsigned size)
 {
-	if(fd == 0) // stdin case.
+	if(fd == 0) // stdin case. (read from console)
 	{
-		for(int i = 0;i < size;i++)
-			buffer[i] = input_getc();
+		for(int i = 0; i < size; i++) // take one byte/char at a time using input_getc till size no. of bytes are read.
+			buffer[i] = input_getc(); /* input_getc: Retrieves a key from the input buffer.
+   										 If the buffer is empty, waits for a key to be pressed. */
 		return size;
 	}
+
 	else // read from a file.
 	{
 		struct opened_file* fptr = get_file(&thread_current()->files, fd); // get file from list of files opened by the current process.
@@ -327,10 +326,9 @@ int syscall_read (int fd, uint8_t *buffer, unsigned size)
 	}
 }
 /* close file having a particular fd. */
-void syscall_close(int fd)
+void syscall_close(struct list* files, int fd)
 {
 	acquire_filesys_lock();
-	struct list* files = &thread_current()->files;
 	close_file(files, fd); // close file with a particular fd, from the list of files.
 	release_filesys_lock();
 }
@@ -341,6 +339,35 @@ int syscall_remove(const char *file)
 	int status =  filesys_remove(file); // deletes file if it exists, false is returned if it fails.
 	release_filesys_lock();
 	return status;
+}
+/* syscall to seek file: set position of file pointer. */
+void syscall_seek(struct list* files, int fd, int new_pos) {
+	acquire_filesys_lock(); // acquire filesys_lock.
+	file_seek(get_file(files, fd)->file_ptr, new_pos); // supply the file pointer and the target offset to the file_seek call.
+	// we utilize the file_seek function provided within the filesys/file.c file.
+	release_filesys_lock(); // release filesys_lock.
+}
+/* syscall to tell offset of current file pointer location from start of the file. */
+int syscall_tell(struct list* files, int fd) {
+	acquire_filesys_lock(); // acquire filesys_lock.
+	// get offset (pos attribute of the file struct) from the start of the file, of current FILE pointer (file->pos) 
+	int offset = file_tell(get_file(files, fd)->file_ptr); // we utilize the file_tell function provided within the filesys/file.c file.
+	release_filesys_lock(); // release filesys_lock.
+	
+	return offset;
+}
+/* syscall to get size of the file in BYTES. */
+int syscall_filesize(struct list* files, int fd) {
+	acquire_filesys_lock(); // acquire filesys_lock.
+	/* get length of the file's inode (file->inode) using the inode_length function.
+	   the inode_length function expects an inode struct and return the inode.data.length.
+	   the data attribute of the inode struct in turn is also a struct of inode_disk type 
+	   which stores internal details about how the file's inode is stored on the disk, which
+	   includes the length of the file. */
+	int offset = file_length (get_file(files, fd)->file_ptr); // we utilize the file_length function provided within the filesys/file.c file.
+	release_filesys_lock(); // release filesys_lock.
+
+	return offset;
 }
 
 /* Get the reference to the opened_file struct type having a particular fd from a list of files. */
@@ -361,12 +388,12 @@ void close_file(struct list* files, int fd)
 	struct list_elem *e;
 	struct opened_file *f;
 	for (e = list_begin (files); e != list_end (files); e = list_next (e))
-	{
+	{ // iterate over the list of files to get pointer to the file corresponding to the given file descriptor.
 		f = list_entry (e, struct opened_file, elem);
 		if(f->fd == fd)
 		{
-			file_close(f->file_ptr);
-			list_remove(e);
+			file_close(f->file_ptr); // close file.
+			list_remove(e); // remove entry of the file from the thread's list of files.
 			break;
 		}
 	}
