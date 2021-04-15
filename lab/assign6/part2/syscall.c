@@ -129,6 +129,7 @@ syscall_handler (struct intr_frame *f)
 		break; // set the return value to the actual number of bytes read.
 
 	case SYS_SEEK:
+		check_addr(p+4);
 		check_addr(p+5);
 		syscall_seek(&thread_current()->files, *(p+4), *(p+5));  // call syscall seek to move offset of file pointer to a new position.
 		break;
@@ -196,9 +197,9 @@ int syscall_write (int filedes, int buffer, int byte_size)
     {
       return byte_size;
     }
-    if(filedes == STD_OUTPUT) 	// check if the file descriptor is for STD_OUTPUT i.e. the console
+    if(filedes == STD_OUTPUT) 	// check if the file descriptor is for STD_OUTPUT i.e. the console.
     {
-      putbuf(buffer, byte_size);
+      putbuf(buffer, byte_size); // to write byte_size number of characters to the buffer.
       return byte_size;
     }
     else
